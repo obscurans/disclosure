@@ -157,7 +157,7 @@ suitEQ x = toSuitR (x, x)
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
 -- &#x2264; ordering in the meet-lattice.
 inclSuitR :: SuitRange -> SuitRange -> Bool
-inclSuitR a b = (mappend a b) == a
+inclSuitR a = (== a) . mappend a
 
 -- | (&#x2660;,&#x2665;,&#x2666;,&#x2663;) constraints for a range of hand
 -- shapes
@@ -213,7 +213,7 @@ instance Read ShapeRange where
 
 -- | Parses as a 'ShapeRange' and converts it to 'ShapeMinimal'
 instance Read ShapeMinimal where
-    readsPrec x = map (\(x, y) -> (minShapeR x, y)) . readsPrec x
+    readsPrec = (map (\(x, y) -> (minShapeR x, y)) .) . readsPrec
 
 -- | The commutative operation intersects the two ranges. Identity is the
 -- universal range.
@@ -229,7 +229,7 @@ instance Monoid ShapeRange where
 -- universal range. Converts to and from 'ShapeRange' form.
 instance Monoid ShapeMinimal where
     mempty = ShapeMinimal $ Just (e, e, e, e) where e = (0, 13)
-    mappend x y = minShapeR $ mappend (expShapeM x) (expShapeM y)
+    mappend x = minShapeR . mappend (expShapeM x) . expShapeM
 
 {-| Constructs, validates, and normalizes a 'ShapeRange'.
 
@@ -304,17 +304,17 @@ These rules are idempotent, ergo normalizing.
 -}
 minShapeR :: ShapeRange -> ShapeMinimal
 minShapeR (ShapeRange Nothing) = ShapeMinimal Nothing
-minShapeR (ShapeRange (Just r)) = ShapeMinimal $ Just $ result
-    where result = if (known12 r) || (not $ within1 r) then relax else r
-          known12 ((s, _), (h, _), (d, _), (c, _)) = s + h + d + c >= 12
-          within1 (s, h, d, c) = all (\(l, h) -> h - l <= 1) [s, h, d, c]
-          relax = calc relMin $ calc relMax r
+minShapeR (ShapeRange (Just r)) = ShapeMinimal $ Just $ result r
+    where result = if (known12 r) || (not $ within1 r) then relax else id
+          known12 = (>= 12) . sum . map fst . toList4
+          within1 = all (\(l, h) -> h - l <= 1) . toList4
+          relax = calc relMin . calc relMax
           calc f (s, h, d, c) = (f s (h, d, c), f h (s, d, c), f d (s, h, c), f c (s, h, d))
-          relMin (l0, h0) ((l1, h1), (l2, h2), (l3, h3))
+          relMin (l0, h0) ((_, h1), (_, h2), (_, h3))
             | l0 == h0 || l0 >= 4 = (l0, h0)
             | 13 - h1 - h2 - h3 >= l0 = (0, h0)
             | otherwise = (l0, h0)
-          relMax (l0, h0) ((l1, h1), (l2, h2), (l3, h3))
+          relMax (l0, h0) ((l1, _), (l2, _), (l3, _))
             | l0 == h0 = (l0, h0)
             | 13 - l1 - l2 - l3 <= h0 = (l0, 13)
             | otherwise = (l0, h0)
@@ -352,5 +352,5 @@ shapeC = ShapeRange . (=<<) (\r -> normShapeN (e, e, e, r)) . unSuitR where e = 
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
 -- &#x2264; ordering in the meet-lattice.
 inclShapeR :: ShapeRange -> ShapeRange -> Bool
-inclShapeR a b = (mappend a b) == a
+inclShapeR a = (== a) . mappend a
 
