@@ -12,21 +12,20 @@ for a validated range of hand shapes, as a 4-tuple of 'SuitRange's;
 'ShapeMinimal' is also a range of hand shapes but is minimized for
 human-readibility.
 
-Hand ranges are conceptualized as a combination of any number of &#x2264; and
-&#x2265; constraints on individual suit lengths, represented by the
-'SuitRange's, with normalization according to one of two schema:
+Hand ranges are conceptualized as a combination of any number of ≤ and ≥
+constraints on individual suit lengths, represented by the 'SuitRange's, with
+normalization according to one of two schema:
 
 * /Closed/ form, corresponding to 'ShapeRange', infers all derived constraints
 based on the requirement that a hand contain exactly 13 cards, and presents the
-most restrictive form. For example, &#x2265;5&#x2660; implies &#x2264;8&#x2665;,
-&#x2264;8&#x2666;, and &#x2264;8&#x2663; simultaneously.
+most restrictive form. For example, ≥5♠ implies ≤8♥, ≤8♦, and ≤8♣
+simultaneously.
 
 * /Open/ form, corresponding to 'ShapeMinimal', conceptually uses the minimal
 number of individual constraints such that the full shape is derivable. Note
 that the intent is for clarity of human viewing and the normalization rules
-reflect that. For example, knowing =6&#x2660; and =6&#x2665; is sufficient to
-derive 6&#x2660; 6&#x2665; 0-1&#x2666; 0-1&#x2663;; &#x2264;1&#x2666; is
-human-redundant.
+reflect that. For example, knowing =6♠ and =6♥ is sufficient to derive 6♠ 6♥
+0-1♦ 0-1♣; ≤1♦ is human-redundant.
 
 'ShapeRange' is isomorphic to 'ShapeMinimal'.
 -}
@@ -72,8 +71,8 @@ type SuitNum = (Int, Int)
 {-| A validated range of lengths in an unspecified suit, as a boxed 'Maybe'
 'SuitNum'.
 
-'SuitNum' ranges (low, high) are valid if 0 &#x2264; low &#x2264; high &#x2264;
-13. Invalid and\/or empty ranges are 'Nothing'.
+'SuitNum' ranges (low, high) are valid if 0 ≤ low ≤ high ≤ 13. Invalid and\/or
+empty ranges are 'Nothing'.
 -}
 newtype SuitRange = SuitRange {
     -- | Unboxes a 'SuitRange'
@@ -89,9 +88,9 @@ newtype SuitRange = SuitRange {
 
 * [x, x] or an = constraint becomes @\"x\"@
 
-* [0, x] or only a &#x2264; constraint becomes @\"x-\"@
+* [0, x] or only a ≤ constraint becomes @\"x-\"@
 
-* [x, 13] or only a &#x2265; constraint becomes @\"x+\"@
+* [x, 13] or only a ≥ constraint becomes @\"x+\"@
 
 * All other [x, y] become @\"x-y\"@
 -}
@@ -142,11 +141,11 @@ normSuitN (l, h)
     | l < 0 || l > 13 || h < 0 || h > 13 || l > h = Nothing
     | otherwise = Just (l, h)
 
--- | Constructs and validates a 'SuitRange' for &#x2264;@x@
+-- | Constructs and validates a 'SuitRange' for ≤@x@
 suitLE :: Int -> SuitRange
 suitLE x = toSuitR (0, x)
 
--- | Constructs and validates a 'SuitRange' for &#x2265;@x@
+-- | Constructs and validates a 'SuitRange' for ≥@x@
 suitGE :: Int -> SuitRange
 suitGE x = toSuitR (x, 13)
 
@@ -155,11 +154,11 @@ suitEQ :: Int -> SuitRange
 suitEQ x = toSuitR (x, x)
 
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
--- &#x2264; ordering in the meet-lattice.
+-- ≤ ordering in the meet-lattice.
 inclSuitR :: SuitRange -> SuitRange -> Bool
 inclSuitR a = (== a) . mappend a
 
--- | (&#x2660;,&#x2665;,&#x2666;,&#x2663;) constraints for a range of hand
+-- | (♠,♥,♦,♣) constraints for a range of hand
 -- shapes
 type ShapeNum = (SuitNum, SuitNum, SuitNum, SuitNum)
 
@@ -193,7 +192,7 @@ newtype ShapeMinimal = ShapeMinimal {
 
 showShapeN :: ShapeNum -> String
 showShapeN = intercalate " " . filter (\x -> head x /= '?')
-           . zipWith (flip (++)) ["\x2660", "\x2665", "\x2666", "\x2663"]
+           . zipWith (flip (++)) ["♠", "♥", "♦", "♣"]
            . map showSuitN . toList4
 
 -- | Converts to a 'ShapeMinimal' and pretty-prints it
@@ -277,14 +276,12 @@ constraints, normalization relaxes (removes) the constraints and takes the
 * All equality constraints are never relaxed.
 
 * If 12 cards are known from min-bounds, all remaining non-equality max-bounds
-are relaxed. This corresponds to turning 5&#x2660; 4-5&#x2665; 4-5&#x2666;
-1-&#x2663; into 5&#x2660; 4+&#x2665; 4+&#x2666;, an \"add last card\" type
-of shape. Equivalent to ignoring the immediate next rule.
+are relaxed. This corresponds to turning 5♠ 4-5♥ 4-5♦ 1-♣ into 5♠ 4+♥ 4+♦, an
+\"add last card\" type of shape. Equivalent to ignoring the immediate next rule.
 
 * Else, if all ranges are within 1 card's length, no constraints are relaxed at
-all. This prevents \"remove a card\" type shapes such as 5&#x2660; 4-5&#x2665;
-3-4&#x2666; 1-&#x2663; from being turned into 5&#x2660; 5-&#x2665; 3-&#x2666;
-1-&#x2663;, deemed harder to read.
+all. This prevents \"remove a card\" type shapes such as 5♠ 4-5♥ 3-4♦ 1-♣ from
+being turned into 5♠ 5-♥ 3-♦ 1-♣, deemed harder to read.
 
 * Consider the derived max-bounds listed in 'toShapeR', which depend on the
 /min/-bounds. If using the min-bounds alone, a max-bound can be derived, then it
@@ -293,14 +290,14 @@ is unnecessary and can be relaxed.
 * Consider the derived min-bounds listed in 'toShapeR', which depend on the
 (new) max-bounds. If using the max-bounds alone, a min-bound can be derived,
 then it is unnecessary and can be relaxed. However, any min-bound which is 4 or
-more is not relaxed, as turning 6&#x2660; 4+&#x2665; 2-&#x2666; 1-&#x2663; into
-6&#x2660; 2-&#x2666; 1-&#x2663; is deemed to not improve readability.
+more is not relaxed, as turning 6♠ 4+♥ 2-♦ 1-♣ into 6♠ 2-♦ 1-♣ is deemed to not
+improve readability.
 
 Note that while either all max- or all min-bounds can be relaxed simultanously
 due to independence, doing both simultaneously is incorrect (try a fully
 specific single shape). The choice of relaxing max-bounds first corresponds to
-preferring 11+&#x2660; -&#x2666; -&#x2663; over 2-&#x2665; -&#x2666; -&#x2663;.
-These rules are idempotent, ergo normalizing.
+preferring 11+♠ -♦ -♣ over 2-♥ -♦ -♣. These rules are idempotent, ergo
+normalizing.
 -}
 minShapeR :: ShapeRange -> ShapeMinimal
 minShapeR (ShapeRange Nothing) = ShapeMinimal Nothing
@@ -330,27 +327,27 @@ shapeHand (SuitRange ms) (SuitRange mh) (SuitRange md) (SuitRange mc) = ShapeRan
     normShapeN (s, h, d, c)
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
--- specified 'SuitRange' of &#x2660;
+-- specified 'SuitRange' of ♠
 shapeS :: SuitRange -> ShapeRange
 shapeS = ShapeRange . (=<<) (\r -> normShapeN (r, e, e, e)) . unSuitR where e = (0, 13)
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
--- specified 'SuitRange' of &#x2665;
+-- specified 'SuitRange' of ♥
 shapeH :: SuitRange -> ShapeRange
 shapeH = ShapeRange . (=<<) (\r -> normShapeN (e, r, e, e)) . unSuitR where e = (0, 13)
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
--- specified 'SuitRange' of &#x2666;
+-- specified 'SuitRange' of ♦
 shapeD :: SuitRange -> ShapeRange
 shapeD = ShapeRange . (=<<) (\r -> normShapeN (e, e, r, e)) . unSuitR where e = (0, 13)
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
--- specified 'SuitRange' of &#x2663;
+-- specified 'SuitRange' of ♣
 shapeC :: SuitRange -> ShapeRange
 shapeC = ShapeRange . (=<<) (\r -> normShapeN (e, e, e, r)) . unSuitR where e = (0, 13)
 
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
--- &#x2264; ordering in the meet-lattice.
+-- ≤ ordering in the meet-lattice.
 inclShapeR :: ShapeRange -> ShapeRange -> Bool
 inclShapeR a = (== a) . mappend a
 

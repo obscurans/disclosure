@@ -84,7 +84,7 @@ instance Read Denom where
 -- | Level and denomination combination for a bid
 data Bid = Bid { level :: Lv, denom :: Denom } deriving (Eq, Ord, Bounded)
 
--- | Natural order, @0@&#x21d4;@1C@ through @34@&#x21d4;@7NT@
+-- | Natural order, @0@⇔@1C@ through @34@⇔@7NT@
 instance Enum Bid where
     fromEnum (Bid (Lv l) d)
         | l < 1 || l > 7 = error "invalid fromEnum Bid"
