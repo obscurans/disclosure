@@ -29,21 +29,22 @@ reflect that. For example, knowing =6♠ and =6♥ is sufficient to derive 6♠ 
 
 'ShapeRange' is isomorphic to 'ShapeMinimal'.
 -}
-module Disclosure.Shape
+module Disclosure.Constraint.Shape
 ( SuitNum
 , SuitRange
 , toSuitR
 , unSuitR
+, suitEQ
 , suitLE
 , suitGE
-, suitEQ
+, suitRG
 , inclSuitR
 , ShapeNum
 , ShapeRange
-, toShapeR
-, unShapeR
 , ShapeMinimal
+, toShapeR
 , toShapeM
+, unShapeR
 , unShapeM
 , minShapeR
 , expShapeM
@@ -55,18 +56,28 @@ module Disclosure.Shape
 , inclShapeR
 ) where
 
+import Data.Char
 import Data.List
-import qualified Data.Tuple.Homogenous --tuples-homogenous-h98
-import Data.Maybe
-import qualified Data.Foldable
 import Data.Monoid
+import Data.Tuple
+import Data.Tuple.Curry --tuples
+import Data.Tuple.Sequence --tuples
+import Data.Tuple.Homogenous --tuples-homogenous-h98
+import qualified Data.Foldable as F
+import Control.Applicative
+import Control.Monad
 
-toList4 = Data.Foldable.toList . Data.Tuple.Homogenous.Tuple4
+_' f = (f.)
+_'' = _' . _'
+applyA2 f a b = f <*> a <*> b
 readSucc y x = [(x, y)]
+
+butterfly :: ([a] -> a -> b) -> (a, a, a, a) -> (b, b, b, b)
+butterfly f (s, h, d, c) = (f [h,d,c] s, f [s,d,c] h, f [s,h,c] d, f [s,h,d] c)
 
 -- | (Low, high) pair of constraints for a suit length. Trivial\/nonexistent
 -- constraints are represented by low = 0 and\/or high = 13.
-type SuitNum = (Int, Int)
+type SuitNum = Tuple2 Int
 
 {-| A validated range of lengths in an unspecified suit, as a boxed 'Maybe'
 'SuitNum'.
@@ -99,7 +110,7 @@ instance Show SuitRange where
     show (SuitRange (Just r)) = showSuitN r
 
 showSuitN :: SuitNum -> String
-showSuitN (a, b)
+showSuitN (Tuple2 (a, b))
     | a == 0 && b == 13 = "?"
     | a == 0 && b == 0 = "-"
     | a == b = show a
@@ -115,7 +126,7 @@ instance Read SuitRange where
         | otherwise = readSucc xs $ suitEQ 0                            -- "-"...
     readsPrec _ xt
         | (x, '-':xs):_ <- reads xt
-        , (y, z):_ <- reads xs = readSucc z $ toSuitR (x, y)            -- "x-y"...
+        , (y, z):_ <- reads xs = readSucc z $ toSuitR $ Tuple2 (x, y)   -- "x-y"...
         | (x, '-':xs):_ <- reads xt = readSucc xs $ suitLE x            -- "x-"...
         | (x, '+':xs):_ <- reads xt = readSucc xs $ suitGE x            -- "x+"...
         | (x, xs):_ <- reads xt = readSucc xs $ suitEQ x                -- "x"...
@@ -124,43 +135,45 @@ instance Read SuitRange where
 -- | The commutative operation intersects the two ranges. Identity is the
 -- universal range.
 instance Monoid SuitRange where
-    mempty = SuitRange $ Just (0, 13)
-    mappend (SuitRange mx) (SuitRange my) = SuitRange $ do
-        (xl, xh) <- mx
-        (yl, yh) <- my
-        let zl = max xl yl
-            zh = min xh yh in
-            if zl > zh then Nothing else Just (zl, zh)
+    mempty = SuitRange $ Just $ Tuple2 (0, 13)
+    mappend = (liftSuitR2 . _'' join . liftM2) intSuitN where
+        liftSuitR2 f (SuitRange a) (SuitRange b) = SuitRange $ f a b
+
+intSuitN :: SuitNum -> SuitNum -> Maybe SuitNum
+intSuitN = (_'' normSuitN . applyA2 . Tuple2) (max, min)
 
 -- | Constructs and validates a 'SuitRange'
 toSuitR :: SuitNum -> SuitRange
 toSuitR = SuitRange . normSuitN
 
 normSuitN :: SuitNum -> Maybe SuitNum
-normSuitN (l, h)
+normSuitN o@(Tuple2 (l, h))
     | l < 0 || l > 13 || h < 0 || h > 13 || l > h = Nothing
-    | otherwise = Just (l, h)
-
--- | Constructs and validates a 'SuitRange' for ≤@x@
-suitLE :: Int -> SuitRange
-suitLE x = toSuitR (0, x)
-
--- | Constructs and validates a 'SuitRange' for ≥@x@
-suitGE :: Int -> SuitRange
-suitGE x = toSuitR (x, 13)
+    | otherwise = Just o
 
 -- | Constructs and validates a 'SuitRange' for =@x@
 suitEQ :: Int -> SuitRange
-suitEQ x = toSuitR (x, x)
+suitEQ = toSuitR . Tuple2 . join (,)
+
+-- | Constructs and validates a 'SuitRange' for ≤@x@
+suitLE :: Int -> SuitRange
+suitLE = toSuitR . Tuple2 . (,) 0
+
+-- | Constructs and validates a 'SuitRange' for ≥@x@
+suitGE :: Int -> SuitRange
+suitGE = toSuitR . Tuple2 . flip (,) 13
+
+-- | Constructs and validates a 'SuitRange' for @x@≤suit≤@y@
+suitRG :: Int -> Int -> SuitRange
+suitRG = _' toSuitR . _' Tuple2 . (,)
 
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
 -- ≤ ordering in the meet-lattice.
 inclSuitR :: SuitRange -> SuitRange -> Bool
 inclSuitR a = (== a) . mappend a
 
--- | (♠,♥,♦,♣) constraints for a range of hand
--- shapes
-type ShapeNum = (SuitNum, SuitNum, SuitNum, SuitNum)
+-- | (♠,♥,♦,♣) constraints for a range of hand shapes
+type ShapeNum = Tuple4 SuitNum
 
 {-| A validated range of hand shapes, as a boxed 'Maybe' 'ShapeNum';
 normalization rules are described in 'toShapeR'.
@@ -193,7 +206,7 @@ newtype ShapeMinimal = ShapeMinimal {
 showShapeN :: ShapeNum -> String
 showShapeN = intercalate " " . filter (\x -> head x /= '?')
            . zipWith (flip (++)) ["♠", "♥", "♦", "♣"]
-           . map showSuitN . toList4
+           . map showSuitN . F.toList
 
 -- | Converts to a 'ShapeMinimal' and pretty-prints it
 instance Show ShapeRange where
@@ -212,23 +225,20 @@ instance Read ShapeRange where
 
 -- | Parses as a 'ShapeRange' and converts it to 'ShapeMinimal'
 instance Read ShapeMinimal where
-    readsPrec = (map (\(x, y) -> (minShapeR x, y)) .) . readsPrec
+    readsPrec = _' (map (\(x, y) -> (minShapeR x, y))) . readsPrec
 
 -- | The commutative operation intersects the two ranges. Identity is the
 -- universal range.
 instance Monoid ShapeRange where
-    mempty = ShapeRange $ Just (e, e, e, e) where e = (0, 13)
-    mappend (ShapeRange x) (ShapeRange y) = ShapeRange $ do
-        (sx, hx, dx, cx) <- x
-        (sy, hy, dy, cy) <- y
-        let app (lx, hx) (ly, hy) = (max lx ly, min hx hy) in
-            normShapeN (app sx sy, app hx hy, app dx dy, app cx cy)
+    mempty = ShapeRange $ Just $ Tuple4 (e, e, e, e) where e = Tuple2 (0, 13)
+    mappend = (liftShapeR2 . _'' join . liftM2) intShapeN where
+        liftShapeR2 f (ShapeRange a) (ShapeRange b) = ShapeRange $ f a b
 
--- | The commutative operation intersects the two ranges. Identity is the
--- universal range. Converts to and from 'ShapeRange' form.
-instance Monoid ShapeMinimal where
-    mempty = ShapeMinimal $ Just (e, e, e, e) where e = (0, 13)
-    mappend x = minShapeR . mappend (expShapeM x) . expShapeM
+intShapeN :: ShapeNum -> ShapeNum -> Maybe ShapeNum
+intShapeN = (_'' (>>= normShapeN) . _'' seq4SN . liftA2) intSuitN
+
+seq4SN :: Tuple4 (Maybe SuitNum) -> Maybe ShapeNum
+seq4SN = fmap Tuple4 . sequenceT . untuple4
 
 {-| Constructs, validates, and normalizes a 'ShapeRange'.
 
@@ -248,19 +258,14 @@ No other derived constraints exist; this is an idempotent operation, ergo
 normalizing. The derived constraints may cause an empty (unsatisfiable)
 'ShapeRange' even if all component 'SuitRange's are individually valid.
 -}
-toShapeR :: ShapeNum -> ShapeRange
+toShapeR :: Tuple4 SuitNum -> ShapeRange
 toShapeR = ShapeRange . normShapeN
 
 normShapeN :: ShapeNum -> Maybe ShapeNum
-normShapeN (s, h, d, c) = do
-    s2 <- normSuitN $ calc s (h, d, c)
-    h2 <- normSuitN $ calc h (s, d, c)
-    d2 <- normSuitN $ calc d (s, h, c)
-    c2 <- normSuitN $ calc c (s, h, d)
-    return (s2, h2, d2, c2)
-    where calc (l0, h0) ((l1, h1), (l2, h2), (l3, h3)) = (l, h)
-            where l = max l0 (13 - h1 - h2 - h3)
-                  h = min h0 (13 - l1 - l2 - l3)
+normShapeN = seq4SN . fmap normSuitN . Tuple4
+           . butterfly ((applyA2 $ Tuple2 (max, min)) . calc)
+           . untuple4 where
+                calc = (fmap $ (13 -) . sum) . Tuple2 . swap . unzip . map untuple2
 
 -- | Constructs, validates, and normalizes a 'ShapeMinimal' by constructing a
 -- 'ShapeRange' and minimizing it
@@ -299,6 +304,7 @@ specific single shape). The choice of relaxing max-bounds first corresponds to
 preferring 11+♠ -♦ -♣ over 2-♥ -♦ -♣. These rules are idempotent, ergo
 normalizing.
 -}
+
 minShapeR :: ShapeRange -> ShapeMinimal
 minShapeR (ShapeRange Nothing) = ShapeMinimal Nothing
 minShapeR (ShapeRange (Just r)) = ShapeMinimal $ Just $ result r
@@ -318,33 +324,31 @@ minShapeR (ShapeRange (Just r)) = ShapeMinimal $ Just $ result r
 
 -- | Converts a 'ShapeMinimal' to its isomorphic 'ShapeRange' form
 expShapeM :: ShapeMinimal -> ShapeRange
-expShapeM = ShapeRange . (=<<) normShapeN . unShapeM
+expShapeM = ShapeRange . (>>= normShapeN) . unShapeM
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' from 4 'SuitRange's
 shapeHand :: SuitRange -> SuitRange -> SuitRange -> SuitRange -> ShapeRange
-shapeHand (SuitRange ms) (SuitRange mh) (SuitRange md) (SuitRange mc) = ShapeRange $ do
-    s <- ms; h <- mh; d <- md; c <- mc
-    normShapeN (s, h, d, c)
+shapeHand = curryN $ ShapeRange . (>>= normShapeN) . seq4SN . fmap unSuitR . Tuple4
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♠
 shapeS :: SuitRange -> ShapeRange
-shapeS = ShapeRange . (=<<) (\r -> normShapeN (r, e, e, e)) . unSuitR where e = (0, 13)
+shapeS = flip (flip (flip shapeHand e) e) e where e = mempty
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♥
 shapeH :: SuitRange -> ShapeRange
-shapeH = ShapeRange . (=<<) (\r -> normShapeN (e, r, e, e)) . unSuitR where e = (0, 13)
+shapeH = flip (flip (shapeHand e) e) e where e = mempty
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♦
 shapeD :: SuitRange -> ShapeRange
-shapeD = ShapeRange . (=<<) (\r -> normShapeN (e, e, r, e)) . unSuitR where e = (0, 13)
+shapeD = flip (shapeHand e e) e where e = mempty
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♣
 shapeC :: SuitRange -> ShapeRange
-shapeC = ShapeRange . (=<<) (\r -> normShapeN (e, e, e, r)) . unSuitR where e = (0, 13)
+shapeC = shapeHand e e e where e = mempty
 
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
 -- ≤ ordering in the meet-lattice.
