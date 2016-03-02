@@ -163,7 +163,7 @@ suitLE = toSuitR . Tuple2 . (,) 0
 suitGE :: Int -> SuitRange
 suitGE = toSuitR . Tuple2 . flip (,) 13
 
--- | Constructs and validates a 'SuitRange' for @x@≤suit≤@y@
+-- | Constructs and validates a 'SuitRange' for [@x@, @y@]
 suitRG :: Int -> Int -> SuitRange
 suitRG = _' toSuitR . _' Tuple2 . (,)
 
@@ -304,7 +304,7 @@ specific single shape). The choice of relaxing max-bounds first corresponds to
 preferring 11+♠ -♦ -♣ over 2-♥ -♦ -♣. These rules are idempotent, ergo
 normalizing.
 -}
-
+-- __TODO__: not working, migrate over to Tupled representation
 minShapeR :: ShapeRange -> ShapeMinimal
 minShapeR (ShapeRange Nothing) = ShapeMinimal Nothing
 minShapeR (ShapeRange (Just r)) = ShapeMinimal $ Just $ result r
