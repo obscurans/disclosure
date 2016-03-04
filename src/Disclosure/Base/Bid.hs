@@ -1,5 +1,5 @@
 {-|
-Module      : Disclosure.Bid
+Module      : Disclosure.Base.Bid
 Description : Datatypes for denominations, bids, and calls
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
@@ -8,7 +8,7 @@ Portability : portable
 
 Defines four enum types for levels, denominations, bids, and non-bid calls.
 -}
-module Disclosure.Bid
+module Disclosure.Base.Bid
 ( Lv
 , toLv
 , toLv'
