@@ -56,7 +56,6 @@ module Disclosure.Constraint.Shape
 , inclShapeR
 ) where
 
-import Data.Char
 import Data.List
 import Data.Monoid
 import Data.Tuple
@@ -66,14 +65,7 @@ import Data.Tuple.Homogenous --tuples-homogenous-h98
 import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
-
-_' f = (f.)
-_'' = _' . _'
-applyA2 f a b = f <*> a <*> b
-readSucc y x = [(x, y)]
-
-butterfly :: ([a] -> a -> b) -> (a, a, a, a) -> (b, b, b, b)
-butterfly f (s, h, d, c) = (f [h,d,c] s, f [s,d,c] h, f [s,h,c] d, f [s,h,d] c)
+import Disclosure.Base.Util
 
 -- | (Low, high) pair of constraints for a suit length. Trivial\/nonexistent
 -- constraints are represented by low = 0 and\/or high = 13.
@@ -106,8 +98,7 @@ newtype SuitRange = SuitRange {
 * All other [x, y] become @\"x-y\"@
 -}
 instance Show SuitRange where
-    show (SuitRange Nothing) = "Null"
-    show (SuitRange (Just r)) = showSuitN r
+    show = maybe "Null" showSuitN . unSuitR
 
 showSuitN :: SuitNum -> String
 showSuitN (Tuple2 (a, b))
@@ -136,8 +127,7 @@ instance Read SuitRange where
 -- universal range.
 instance Monoid SuitRange where
     mempty = SuitRange $ Just $ Tuple2 (0, 13)
-    mappend = (liftSuitR2 . _'' join . liftM2) intSuitN where
-        liftSuitR2 f (SuitRange a) (SuitRange b) = SuitRange $ f a b
+    mappend = (liftN2 unSuitR SuitRange . _'' join . liftM2) intSuitN
 
 intSuitN :: SuitNum -> SuitNum -> Maybe SuitNum
 intSuitN = (_'' normSuitN . applyA2 . Tuple2) (max, min)
@@ -153,19 +143,19 @@ normSuitN o@(Tuple2 (l, h))
 
 -- | Constructs and validates a 'SuitRange' for =@x@
 suitEQ :: Int -> SuitRange
-suitEQ = toSuitR . Tuple2 . join (,)
+suitEQ = toSuitR . join tuple2
 
 -- | Constructs and validates a 'SuitRange' for ≤@x@
 suitLE :: Int -> SuitRange
-suitLE = toSuitR . Tuple2 . (,) 0
+suitLE = toSuitR . tuple2 0
 
 -- | Constructs and validates a 'SuitRange' for ≥@x@
 suitGE :: Int -> SuitRange
-suitGE = toSuitR . Tuple2 . flip (,) 13
+suitGE = toSuitR . flip tuple2 13
 
 -- | Constructs and validates a 'SuitRange' for [@x@, @y@]
 suitRG :: Int -> Int -> SuitRange
-suitRG = _' toSuitR . _' Tuple2 . (,)
+suitRG = _' toSuitR . tuple2
 
 -- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
 -- ≤ ordering in the meet-lattice.
@@ -216,8 +206,7 @@ instance Show ShapeRange where
 -- alphabetical) as 'SuitRange's, followed by their (filled) unicode suit
 -- symbols, separated by spaces. An invalid 'ShapeMinimal' becomes @\"Null\"@.
 instance Show ShapeMinimal where
-    show (ShapeMinimal Nothing) = "Null"
-    show (ShapeMinimal (Just x)) = showShapeN x
+    show = maybe "Null" showShapeN . unShapeM
 
 -- | __TODO:__ Not implemented
 instance Read ShapeRange where
@@ -231,11 +220,10 @@ instance Read ShapeMinimal where
 -- universal range.
 instance Monoid ShapeRange where
     mempty = ShapeRange $ Just $ Tuple4 (e, e, e, e) where e = Tuple2 (0, 13)
-    mappend = (liftShapeR2 . _'' join . liftM2) intShapeN where
-        liftShapeR2 f (ShapeRange a) (ShapeRange b) = ShapeRange $ f a b
+    mappend = (liftN2 unShapeR ShapeRange . _'' join . liftM2) intShapeN
 
 intShapeN :: ShapeNum -> ShapeNum -> Maybe ShapeNum
-intShapeN = (_'' (>>= normShapeN) . _'' seq4SN . liftA2) intSuitN
+intShapeN = (_'' ((>>= normShapeN) . seq4SN) . liftA2) intSuitN
 
 seq4SN :: Tuple4 (Maybe SuitNum) -> Maybe ShapeNum
 seq4SN = fmap Tuple4 . sequenceT . untuple4
@@ -306,21 +294,19 @@ normalizing.
 -}
 -- __TODO__: not working, migrate over to Tupled representation
 minShapeR :: ShapeRange -> ShapeMinimal
-minShapeR (ShapeRange Nothing) = ShapeMinimal Nothing
-minShapeR (ShapeRange (Just r)) = ShapeMinimal $ Just $ result r
-    where result = if (known12 r) || (not $ within1 r) then relax else id
-          known12 = (>= 12) . sum . map fst . toList4
-          within1 = all (\(l, h) -> h - l <= 1) . toList4
-          relax = calc relMin . calc relMax
-          calc f (s, h, d, c) = (f s (h, d, c), f h (s, d, c), f d (s, h, c), f c (s, h, d))
-          relMin (l0, h0) ((_, h1), (_, h2), (_, h3))
-            | l0 == h0 || l0 >= 4 = (l0, h0)
-            | 13 - h1 - h2 - h3 >= l0 = (0, h0)
-            | otherwise = (l0, h0)
-          relMax (l0, h0) ((l1, _), (l2, _), (l3, _))
-            | l0 == h0 = (l0, h0)
-            | 13 - l1 - l2 - l3 <= h0 = (l0, 13)
-            | otherwise = (l0, h0)
+minShapeR = ShapeMinimal . fmap result . unShapeR where
+    result r = if (known12 r) || (not $ within1 r) then relax r else r
+    known12 = (>= 12) . sum . map (fst . untuple2) . F.toList
+    within1 = all (\(Tuple2 (l, h)) -> h - l <= 1) . F.toList
+    relax = Tuple4 . butterfly relMin . butterfly relMax . untuple4
+    relMin s o@(Tuple2 (l, h))
+        | l == h || l >= 4 = o
+        | 13 - (sum . map (snd . untuple2)) s >= l = Tuple2 (0, h)
+        | otherwise = o
+    relMax s o@(Tuple2 (l, h))
+        | l == h = o
+        | 13 - (sum . map (fst . untuple2)) s <= h = Tuple2 (l, 13)
+        | otherwise = o
 
 -- | Converts a 'ShapeMinimal' to its isomorphic 'ShapeRange' form
 expShapeM :: ShapeMinimal -> ShapeRange
