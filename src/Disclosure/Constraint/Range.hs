@@ -1,6 +1,6 @@
 {-|
 Module      : Disclosure.Constraint.Range
-Description : Datatypes for strength ranges
+Description : Datatypes for unbounded and bounded ranges
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
@@ -37,20 +37,6 @@ import Data.Tuple
 import Data.Tuple.Homogenous
 import Control.Monad
 import Disclosure.Base.Util
-
-newtype Min a = Min { unMin :: Maybe a }
-instance Ord a => Monoid (Min a) where
-    mempty = Min Nothing
-    mappend (Min Nothing) y = y
-    mappend x@(Min (Just _)) (Min Nothing) = x
-    mappend (Min (Just x)) (Min (Just y)) = Min $ Just $ min x y
-
-newtype Max a = Max { unMax :: Maybe a }
-instance Ord a => Monoid (Max a) where
-    mempty = Max Nothing
-    mappend (Max Nothing) y = y
-    mappend x@(Max (Just _)) (Max Nothing) = x
-    mappend (Max (Just x)) (Max (Just y)) = Max $ Just $ max x y
 
 {-| A validated closed interval over an ordered type, represented as a boxed
 @'Maybe' ('Tuple2' ('Maybe' a))@ for [low, high]. The inner 'Maybe' injects
