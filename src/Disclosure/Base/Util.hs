@@ -35,8 +35,34 @@ liftN2 :: (c -> a) -> (b -> d) -> (a -> a -> b) -> (c -> c -> d)
 liftN2 f g = curry . _' g . __' (untuple2 . fmap f . Tuple2) . uncurry
 
 -- | Lifts a 4-function using a un-constructor and an output constructor
-liftN4 :: (c -> a) -> (b -> d) -> (a -> a -> a -> a -> b) -> (c -> c -> c -> c -> d)
+liftN4 :: (c -> a) -> (b -> d) -> (a -> a -> a -> a -> b) ->
+          c -> c -> c -> c -> d
 liftN4 f g = curryN . _' g . __' (untuple4 . fmap f . Tuple4) . uncurryN
+
+-- | Validates with the given function or flushes to 'Nothing'
+toMaybe :: (a -> Bool) -> a -> Maybe a
+toMaybe f x = if f x then Just x else Nothing
+
+-- | Newtype wrapper for 'Maybe' @a@ that orders 'Nothing' last, 'Just' normally
+newtype NothingLast a = NLast { unNLast :: (Maybe a) } deriving Eq
+instance Ord a => Ord (NothingLast a) where
+    compare (NLast Nothing) (NLast Nothing) = EQ
+    compare (NLast Nothing) (NLast _) = GT
+    compare (NLast _) (NLast Nothing) = LT
+    compare (NLast x) (NLast y) = compare x y
+
+-- | Newtype wrapper for 'Maybe' @a@ that turns endofunctions absorptive: if one
+-- argument is 'Nothing' it returns the other, else applies the function.
+-- Endofunction restriction (for defaulting values) disallows full 'Monad'
+-- instance.
+newtype AbsorbNothing a = AbsorbN { unAbsorbN :: Maybe a }
+
+-- | Lifts a binary function into 'AbsorbNothing'
+liftAbsorb2 :: (a -> a -> a) ->
+               AbsorbNothing a -> AbsorbNothing a -> AbsorbNothing a
+liftAbsorb2 f (AbsorbN Nothing) y = y
+liftAbsorb2 f x@(AbsorbN (Just _)) (AbsorbN Nothing) = x
+liftAbsorb2 f (AbsorbN (Just x)) (AbsorbN (Just y)) = AbsorbN $ Just $ f x y
 
 -- | Utility to simplify 'readsPrec' returns
 readSucc :: b -> a -> [(a, b)]
