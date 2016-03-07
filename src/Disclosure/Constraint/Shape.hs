@@ -228,8 +228,8 @@ normShapeN :: ShapeNum -> Maybe ShapeNum
 normShapeN = sequenceT . untuple4 . fmap valSuitN . Tuple4 . butterfly calc
                 where calc ((SuitInt l0, SuitInt h0), (SuitInt l1, SuitInt h1),
                            (SuitInt l2, SuitInt h2)) (SuitInt l, SuitInt h) =
-                                (SuitInt $ max l (13 - h0 - h1 - h2),
-                                 SuitInt $ min h (13 - l0 - l1 - l2))
+                                (SuitInt $ max l $ 13 - h0 - h1 - h2,
+                                 SuitInt $ min h $ 13 - l0 - l1 - l2)
 
 -- | Constructs, validates, and normalizes a 'ShapeMinimal' by constructing a
 -- 'ShapeRange' and minimizing it
@@ -273,7 +273,7 @@ minShapeR :: ShapeRange -> ShapeMinimal
 minShapeR = ShapeMinimal . fmap result . unShapeR where
     result r = if (known12 r) || (not $ within1 r) then relax r else r
     known12 ((SuitInt s, _), (SuitInt h, _), (SuitInt d, _), (SuitInt c, _)) =
-        s + h + d + c >= 12
+                                                            s + h + d + c >= 12
     within1 (s, h, d, c) = ch s && ch h && ch d && ch c where
                             ch (SuitInt l, SuitInt h) = h - l <= 1
     relax = butterfly relMin . butterfly relMax
