@@ -1,10 +1,11 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-|
 Module      : Disclosure.Shape
 Description : Datatypes for ranges of individual suit lengths and hand shapes
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
-Portability : portable
+Portability : GeneralizedNewtypeDeriving
 
 Defines three types: 'SuitRange' for a validated range of lengths in an
 unspecified suit, as a closed interval of integers within [0, 13]; 'ShapeRange'
@@ -30,15 +31,15 @@ reflect that. For example, knowing =6♠ and =6♥ is sufficient to derive 6♠ 
 'ShapeRange' is isomorphic to 'ShapeMinimal'.
 -}
 module Disclosure.Constraint.Shape
-( SuitNum
+( SuitInt(..)
+, SuitNum
 , SuitRange
 , toSuitR
 , unSuitR
+, toSuitR'
 , suitEQ
 , suitLE
 , suitGE
-, suitRG
-, inclSuitR
 , ShapeNum
 , ShapeRange
 , ShapeMinimal
@@ -53,117 +54,85 @@ module Disclosure.Constraint.Shape
 , shapeH
 , shapeD
 , shapeC
-, inclShapeR
 ) where
 
 import Data.List
 import Data.Monoid
-import Data.Tuple
 import Data.Tuple.Curry --tuples
 import Data.Tuple.Sequence --tuples
 import Data.Tuple.Homogenous --tuples-homogenous-h98
-import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
 import Disclosure.Base.Util
+import Disclosure.Constraint.Range
 
--- | (Low, high) pair of constraints for a suit length. Trivial\/nonexistent
+-- | Wrapper over 'Int' which is 'Bounded' to [@0@, @13@]. Performs no bounds
+-- checking.
+newtype SuitInt = SuitInt { unSuitInt :: Int }
+    deriving (Eq, Ord, Enum, Num, Real, Integral, Show, Read)
+
+instance Bounded SuitInt where
+    {-# INLINABLE minBound #-}
+    minBound = SuitInt 0
+    {-# INLINABLE maxBound #-}
+    maxBound = SuitInt 13
+
+-- | A range of lengths [low, high] in an unspecified suit. Trivial\/nonexistent
 -- constraints are represented by low = 0 and\/or high = 13.
-type SuitNum = Tuple2 Int
+type SuitNum = (SuitInt, SuitInt)
 
-{-| A validated range of lengths in an unspecified suit, as a boxed 'Maybe'
-'SuitNum'.
+{-| A validated range of lengths in an unspecified suit, as a boxed @'Maybe'
+'SuitNum'@.
 
-'SuitNum' ranges (low, high) are valid if 0 ≤ low ≤ high ≤ 13. Invalid and\/or
-empty ranges are 'Nothing'.
+Ranges are valid if 0 ≤ low ≤ high ≤ 13. Invalid and\/or empty ranges are
+'Nothing'.
 -}
-newtype SuitRange = SuitRange {
-    -- | Unboxes a 'SuitRange'
-    unSuitR :: Maybe SuitNum } deriving (Eq, Ord)
-
-{-| Pretty-prints a 'SuitRange' according to the following rules in precedence:
-
-* An invalid range becomes @\"Null\"@
-
-* [0, 13] or no constraint becomes @\"?\"@
-
-* [0, 0] or a void becomes @\"-\"@
-
-* [x, x] or an = constraint becomes @\"x\"@
-
-* [0, x] or only a ≤ constraint becomes @\"x-\"@
-
-* [x, 13] or only a ≥ constraint becomes @\"x+\"@
-
-* All other [x, y] become @\"x-y\"@
--}
-instance Show SuitRange where
-    show = maybe "Null" showSuitN . unSuitR
-
-showSuitN :: SuitNum -> String
-showSuitN (Tuple2 (a, b))
-    | a == 0 && b == 13 = "?"
-    | a == 0 && b == 0 = "-"
-    | a == b = show a
-    | a == 0 = show b ++ "-"
-    | b == 13 = show a ++ "+"
-    | otherwise = show a ++ "-" ++ show b
-
-instance Read SuitRange where
-    readsPrec _ ('N':'u':'l':'l':xs) = readSucc xs $ SuitRange Nothing  -- "Null"...
-    readsPrec _ ('?':xs) = readSucc xs $ mempty                         -- "?"...
-    readsPrec _ ('-':xs)
-        | (x, z):_ <- reads xs = readSucc z $ suitLE x                  -- "-x"...
-        | otherwise = readSucc xs $ suitEQ 0                            -- "-"...
-    readsPrec _ xt
-        | (x, '-':xs):_ <- reads xt
-        , (y, z):_ <- reads xs = readSucc z $ toSuitR $ Tuple2 (x, y)   -- "x-y"...
-        | (x, '-':xs):_ <- reads xt = readSucc xs $ suitLE x            -- "x-"...
-        | (x, '+':xs):_ <- reads xt = readSucc xs $ suitGE x            -- "x+"...
-        | (x, xs):_ <- reads xt = readSucc xs $ suitEQ x                -- "x"...
-    readsPrec _ _ = []
-
--- | The commutative operation intersects the two ranges. Identity is the
--- universal range.
-instance Monoid SuitRange where
-    mempty = SuitRange $ Just $ Tuple2 (0, 13)
-    mappend = (liftN2 unSuitR SuitRange . _'' join . liftM2) intSuitN
-
-intSuitN :: SuitNum -> SuitNum -> Maybe SuitNum
-intSuitN = (_'' normSuitN . applyA2 . Tuple2) (max, min)
+type SuitRange = BRange SuitInt
 
 -- | Constructs and validates a 'SuitRange'
-toSuitR :: SuitNum -> SuitRange
-toSuitR = SuitRange . normSuitN
+toSuitR :: SuitInt -> SuitInt -> SuitRange
+{-# INLINABLE toSuitR #-}
+toSuitR = toBRange
 
-normSuitN :: SuitNum -> Maybe SuitNum
-normSuitN o@(Tuple2 (l, h))
-    | l < 0 || l > 13 || h < 0 || h > 13 || l > h = Nothing
-    | otherwise = Just o
+-- | Unboxes a 'SuitRange'
+unSuitR :: SuitRange -> Maybe SuitNum
+{-# INLINABLE unSuitR #-}
+unSuitR = unBRange
+
+valSuitN :: SuitNum -> Maybe SuitNum
+{-# INLINABLE valSuitN #-}
+valSuitN = valBRangeR
+
+showSuitN :: SuitNum -> String
+{-# INLINABLE showSuitN #-}
+showSuitN = showBRangeR
+
+intSuitN :: SuitNum -> SuitNum -> Maybe SuitNum
+{-# INLINABLE intSuitN #-}
+intSuitN = intBRangeR
+
+-- | Constructs and validates a 'SuitRange' for [@x@, @y@]
+toSuitR' :: Int -> Int -> SuitRange
+{-# INLINABLE toSuitR' #-}
+toSuitR' = liftN2 SuitInt id toSuitR
 
 -- | Constructs and validates a 'SuitRange' for =@x@
 suitEQ :: Int -> SuitRange
-suitEQ = toSuitR . join tuple2
+{-# INLINABLE suitEQ #-}
+suitEQ = bRangeEQ . SuitInt
 
 -- | Constructs and validates a 'SuitRange' for ≤@x@
 suitLE :: Int -> SuitRange
-suitLE = toSuitR . tuple2 0
+{-# INLINABLE suitLE #-}
+suitLE = bRangeLE . SuitInt
 
 -- | Constructs and validates a 'SuitRange' for ≥@x@
 suitGE :: Int -> SuitRange
-suitGE = toSuitR . flip tuple2 13
-
--- | Constructs and validates a 'SuitRange' for [@x@, @y@]
-suitRG :: Int -> Int -> SuitRange
-suitRG = _' toSuitR . tuple2
-
--- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
--- ≤ ordering in the meet-lattice.
-inclSuitR :: SuitRange -> SuitRange -> Bool
-inclSuitR a = (== a) . mappend a
+{-# INLINABLE suitGE #-}
+suitGE = bRangeGE . SuitInt
 
 -- | (♠,♥,♦,♣) constraints for a range of hand shapes
-type ShapeNum = Tuple4 SuitNum
+type ShapeNum = (SuitNum, SuitNum, SuitNum, SuitNum)
 
 {-| A validated range of hand shapes, as a boxed 'Maybe' 'ShapeNum';
 normalization rules are described in 'toShapeR'.
@@ -193,44 +162,39 @@ newtype ShapeMinimal = ShapeMinimal {
     -- | Unboxes a 'ShapeMinimal'
     unShapeM :: Maybe ShapeNum } deriving (Eq, Ord)
 
-showShapeN :: ShapeNum -> String
-showShapeN = intercalate " " . filter (\x -> head x /= '?')
-           . zipWith (flip (++)) ["♠", "♥", "♦", "♣"]
-           . map showSuitN . F.toList
-
--- | Converts to a 'ShapeMinimal' and pretty-prints it
+-- | Converts to a 'ShapeMinimal' and prints it
 instance Show ShapeRange where
+    {-# INLINABLE show #-}
     show = show . minShapeR
 
--- | Pretty-prints all nontrivially constrained suits in rank order (reverse
+-- | Prints all nontrivially constrained suits in rank order (reverse
 -- alphabetical) as 'SuitRange's, followed by their (filled) unicode suit
 -- symbols, separated by spaces. An invalid 'ShapeMinimal' becomes @\"Null\"@.
 instance Show ShapeMinimal where
+    {-# INLINABLE show #-}
     show = maybe "Null" showShapeN . unShapeM
 
--- | __TODO:__ Not implemented
-instance Read ShapeRange where
-    readsPrec _ _ = []
-
--- | Parses as a 'ShapeRange' and converts it to 'ShapeMinimal'
-instance Read ShapeMinimal where
-    readsPrec = _' (map (\(x, y) -> (minShapeR x, y))) . readsPrec
+showShapeN :: ShapeNum -> String
+{-# INLINABLE showShapeN #-}
+showShapeN = intercalate " " . filter (\x -> head x /= '?')
+           . zipWith (flip (++)) ["♠", "♥", "♦", "♣"]
+           . map showSuitN . (\(s, h, d, c) -> [s, h, d, c])
 
 -- | The commutative operation intersects the two ranges. Identity is the
 -- universal range.
 instance Monoid ShapeRange where
-    mempty = ShapeRange $ Just $ Tuple4 (e, e, e, e) where e = Tuple2 (0, 13)
+    {-# INLINABLE mempty #-}
+    mempty = ShapeRange $ Just $ (e, e, e, e) where e = (SuitInt 0, SuitInt 13)
+    {-# INLINABLE mappend #-}
     mappend = (liftN2 unShapeR ShapeRange . _'' join . liftM2) intShapeN
 
 intShapeN :: ShapeNum -> ShapeNum -> Maybe ShapeNum
-intShapeN = (_'' ((>>= normShapeN) . seq4SN) . liftA2) intSuitN
+{-# INLINABLE intShapeN #-}
+intShapeN x = (>>= normShapeN) . sequenceT . untuple4
+            . (fmap intSuitN (Tuple4 x) <*>) . Tuple4
 
-seq4SN :: Tuple4 (Maybe SuitNum) -> Maybe ShapeNum
-seq4SN = fmap Tuple4 . sequenceT . untuple4
-
-{-| Constructs, validates, and normalizes a 'ShapeRange'.
-
-Normalization takes the most restrictive bound via the following rules:
+{-| Constructs, validates, and normalizes a 'ShapeRange'. Normalization takes
+the most restrictive bound via the following rules:
 
 * For any suit @X@, let @M3@ be the sum of the max-bounds of all other suits.
 Then @X@ must be at least @min' = 13 - M3@ cards or it is impossible to have as
@@ -246,23 +210,24 @@ No other derived constraints exist; this is an idempotent operation, ergo
 normalizing. The derived constraints may cause an empty (unsatisfiable)
 'ShapeRange' even if all component 'SuitRange's are individually valid.
 -}
-toShapeR :: Tuple4 SuitNum -> ShapeRange
+toShapeR :: ShapeNum -> ShapeRange
+{-# INLINABLE toShapeR #-}
 toShapeR = ShapeRange . normShapeN
 
 normShapeN :: ShapeNum -> Maybe ShapeNum
-normShapeN = seq4SN . fmap normSuitN . Tuple4
-           . butterfly ((applyA2 $ Tuple2 (max, min)) . calc)
-           . untuple4 where
-                calc = (fmap $ (13 -) . sum) . Tuple2 . swap . unzip . map untuple2
+{-# INLINABLE normShapeN #-}
+normShapeN = sequenceT . untuple4 . fmap valSuitN . Tuple4 . butterfly calc
+                where calc ((l0, h0), (l1, h1), (l2, h2)) (l, h) =
+                        (max l (13 - h0 - h1 - h2), min h (13 - l0 - l1 - l2))
 
 -- | Constructs, validates, and normalizes a 'ShapeMinimal' by constructing a
 -- 'ShapeRange' and minimizing it
 toShapeM :: ShapeNum -> ShapeMinimal
+{-# INLINABLE toShapeM #-}
 toShapeM = minShapeR . toShapeR
 
-{-| Converts a 'ShapeRange' into its isomorphic 'ShapeMinimal' form.
-
-Given that the range starts out in 'ShapeRange' form, with maximally restrictive
+{-| Converts a 'ShapeRange' into its isomorphic 'ShapeMinimal' form. Given that
+the range starts out in 'ShapeRange' form, with maximally restrictive
 constraints, normalization relaxes (removes) the constraints and takes the
 \"best\" (author-preferred) human-readable form via the following rules:
 
@@ -292,52 +257,55 @@ specific single shape). The choice of relaxing max-bounds first corresponds to
 preferring 11+♠ -♦ -♣ over 2-♥ -♦ -♣. These rules are idempotent, ergo
 normalizing.
 -}
--- __TODO__: not working, migrate over to Tupled representation
 minShapeR :: ShapeRange -> ShapeMinimal
+{-# INLINABLE minShapeR #-}
 minShapeR = ShapeMinimal . fmap result . unShapeR where
     result r = if (known12 r) || (not $ within1 r) then relax r else r
-    known12 = (>= 12) . sum . map (fst . untuple2) . F.toList
-    within1 = all (\(Tuple2 (l, h)) -> h - l <= 1) . F.toList
-    relax = Tuple4 . butterfly relMin . butterfly relMax . untuple4
-    relMin s o@(Tuple2 (l, h))
+    known12 ((s, _), (h, _), (d, _), (c, _)) = s + h + d + c >= 12
+    within1 (s, h, d, c) = ch s && ch h && ch d && ch c where
+                            ch (l, h) = h - l <= 1
+    relax = butterfly relMin . butterfly relMax
+    relMin ((_, h1), (_, h2), (_, h3)) o@(l, h)
         | l == h || l >= 4 = o
-        | 13 - (sum . map (snd . untuple2)) s >= l = Tuple2 (0, h)
+        | 13 - h1 - h2 - h3 >= l = (0, h)
         | otherwise = o
-    relMax s o@(Tuple2 (l, h))
+    relMax ((l1, _), (l2, _), (l3, _)) o@(l, h)
         | l == h = o
-        | 13 - (sum . map (fst . untuple2)) s <= h = Tuple2 (l, 13)
+        | 13 - l1 - l2 - l3 <= h = (l, 13)
         | otherwise = o
 
 -- | Converts a 'ShapeMinimal' to its isomorphic 'ShapeRange' form
 expShapeM :: ShapeMinimal -> ShapeRange
+{-# INLINABLE expShapeM #-}
 expShapeM = ShapeRange . (>>= normShapeN) . unShapeM
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' from 4 'SuitRange's
 shapeHand :: SuitRange -> SuitRange -> SuitRange -> SuitRange -> ShapeRange
-shapeHand = curryN $ ShapeRange . (>>= normShapeN) . seq4SN . fmap unSuitR . Tuple4
+{-# INLINABLE shapeHand #-}
+shapeHand = curryN $ ShapeRange . (>>= normShapeN) . sequenceT
+                   . untuple4 . fmap unSuitR . Tuple4
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♠
 shapeS :: SuitRange -> ShapeRange
+{-# INLINABLE shapeS #-}
 shapeS = flip (flip (flip shapeHand e) e) e where e = mempty
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♥
 shapeH :: SuitRange -> ShapeRange
+{-# INLINABLE shapeH #-}
 shapeH = flip (flip (shapeHand e) e) e where e = mempty
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♦
 shapeD :: SuitRange -> ShapeRange
+{-# INLINABLE shapeD #-}
 shapeD = flip (shapeHand e e) e where e = mempty
 
 -- | Constructs, validates, and normalizes a 'ShapeRange' with only the
 -- specified 'SuitRange' of ♣
 shapeC :: SuitRange -> ShapeRange
+{-# INLINABLE shapeC #-}
 shapeC = shapeHand e e e where e = mempty
-
--- | Tests whether @a@ is included in @b@, using the 'Monoid' of intersection.
--- ≤ ordering in the meet-lattice.
-inclShapeR :: ShapeRange -> ShapeRange -> Bool
-inclShapeR a = (== a) . mappend a
 

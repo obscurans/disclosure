@@ -26,10 +26,14 @@ module Disclosure.Constraint.Range
 , bRangeLE
 , uRangeGE
 , bRangeGE
-, intURangeR
-, intBRangeR
 , compareIntUR
 , compareIntBR
+, valURangeR
+, valBRangeR
+, showURangeR
+, showBRangeR
+, intURangeR
+, intBRangeR
 ) where
 
 import Data.Ord
@@ -61,20 +65,22 @@ newtype BRange a = BRange {
 -- | Constructs and validates a 'URange'
 toURange :: Ord a => Maybe a -> Maybe a -> URange a
 {-# INLINABLE toURange #-}
-toURange = _'' (URange . valURange) (,)
+toURange = _'' (URange . valURangeR) (,)
 
-valURange :: Ord a => (Maybe a, Maybe a) -> Maybe (Maybe a, Maybe a)
-{-# INLINABLE valURange #-}
-valURange = toMaybe (\(x, y) -> maybe True id (liftM2 (>=) x y))
+-- | Validates an unboxed 'URange'
+valURangeR :: Ord a => (Maybe a, Maybe a) -> Maybe (Maybe a, Maybe a)
+{-# INLINABLE valURangeR #-}
+valURangeR = toMaybe (\(x, y) -> maybe True id (liftM2 (>=) x y))
 
 -- | Constructs and validates a 'BRange'
 toBRange :: (Bounded a, Ord a) => a -> a -> BRange a
 {-# INLINABLE toBRange #-}
-toBRange = _'' (BRange . valBRange) (,)
+toBRange = _'' (BRange . valBRangeR) (,)
 
-valBRange :: (Bounded a, Ord a) => (a, a) -> Maybe (a, a)
-{-# INLINABLE valBRange #-}
-valBRange = toMaybe (\(x, y) -> x >= minBound && x <= maxBound &&
+-- | Validates an unboxed 'BRange'
+valBRangeR :: (Bounded a, Ord a) => (a, a) -> Maybe (a, a)
+{-# INLINABLE valBRangeR #-}
+valBRangeR = toMaybe (\(x, y) -> x >= minBound && x <= maxBound &&
                      y >= minBound && y <= maxBound && x <= y)
 
 {-|
@@ -92,12 +98,16 @@ valBRange = toMaybe (\(x, y) -> x >= minBound && x <= maxBound &&
 -}
 instance (Eq a, Show a) => Show (URange a) where
     {-# INLINABLE show #-}
-    show = maybe "Null" show' . unURange where
-        show' (mx, my)
-            | mx == my = maybe "?" show mx
-            | Nothing <- mx, Just y <- my = show y ++ "-"
-            | Just x <- mx, Nothing <- my = show x ++ "+"
-            | Just x <- mx, Just y <- my, otherwise = show x ++ "–" ++ show y
+    show = maybe "Null" showURangeR . unURange
+
+-- | 'Show's an unboxed 'URange'
+showURangeR :: (Eq a, Show a) => (Maybe a, Maybe a) -> String
+{-# INLINABLE showURangeR #-}
+showURangeR (mx, my)
+    | mx == my = maybe "?" show mx
+    | Nothing <- mx, Just y <- my = show y ++ "-"
+    | Just x <- mx, Nothing <- my = show x ++ "+"
+    | Just x <- mx, Just y <- my, otherwise = show x ++ "–" ++ show y
 
 {-|
 * An invalid and\/or empty range becomes @\"Null\"@
@@ -114,13 +124,17 @@ instance (Eq a, Show a) => Show (URange a) where
 -}
 instance (Bounded a, Eq a, Show a) => Show (BRange a) where
     {-# INLINABLE show #-}
-    show = maybe "Null" show' . unBRange where
-        show' (x, y)
-            | x == minBound && y == maxBound = "?"
-            | x == y = show x
-            | x == minBound = show y ++ "-"
-            | y == maxBound = show x ++ "+"
-            | otherwise = show x ++ "–" ++ show y
+    show = maybe "Null" showBRangeR . unBRange
+
+-- | 'Show's an unboxed 'BRange'
+showBRangeR :: (Bounded a, Eq a, Show a) => (a, a) -> String
+{-# INLINABLE showBRangeR #-}
+showBRangeR (x, y)
+    | x == minBound && y == maxBound = "?"
+    | x == y = show x
+    | x == minBound = show y ++ "-"
+    | y == maxBound = show x ++ "+"
+    | otherwise = show x ++ "–" ++ show y
 
 instance Bounded (URange a) where
     {-# INLINABLE minBound #-}
@@ -160,8 +174,8 @@ instance Ord a => Monoid (URange a) where
 intURangeR :: Ord a => (Maybe a, Maybe a) -> (Maybe a, Maybe a)
                         -> Maybe (Maybe a, Maybe a)
 {-# INLINABLE intURangeR #-}
-intURangeR (l, h) (l', h') = valURange (liftAbsorb2 max l l',
-                                        liftAbsorb2 min h h')
+intURangeR (l, h) (l', h') = valURangeR (liftAbsorb2 max l l',
+                                         liftAbsorb2 min h h')
 
 -- | The commutative operation intersects the two ranges. Identity is the
 -- universal range.
@@ -174,7 +188,7 @@ instance (Bounded a, Ord a) => Monoid (BRange a) where
 -- | Intersection operator for unboxed 'BRange'
 intBRangeR :: (Bounded a, Ord a) => (a, a) -> (a, a) -> Maybe (a, a)
 {-# INLINABLE intBRangeR #-}
-intBRangeR (l, h) (l', h') = valBRange (max l l', min h h')
+intBRangeR (l, h) (l', h') = valBRangeR (max l l', min h h')
 
 -- | True subset inclusion partial order for 'URange's. 'EQ' denotes true
 -- equality or incomparability.
