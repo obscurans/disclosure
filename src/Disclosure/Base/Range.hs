@@ -1,11 +1,10 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-|
 Module      : Disclosure.Base.Range
 Description : Datatypes for unbounded and bounded ranges
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
-Portability : GeneralizedNewtypeDeriving
+Portability : portable
 
 Defines types for unbounded and bounded ranges, which are closed intervals over
 ordered types, represented by a 2-tuple. For unbounded ranges, interval bounds
@@ -202,14 +201,13 @@ intBRangeR (l, h) (l', h') = valBRangeR (max l l', min h h')
 -- | Newtype wrapper on a 'URange' whose 'Ord'ering is subset inclusion, for
 -- testing of inclusion. Note that 'Eq' is inherited directly and __IS
 -- INCONSISTENT__ with 'Ord' on incomparable ranges.
-newtype IntersectUR a = IntersectUR { unIntersectUR :: URange a }
-    deriving (Eq, Monoid)
+newtype IntersectUR a = IntersectUR { unIntersectUR :: URange a } deriving Eq
 
 -- | True subset inclusion ordering, where 'EQ' denotes true equality or
 -- incomparability
 instance Ord a => Ord (IntersectUR a) where
     {-# INLINABLE compare #-}
-    compare x y
+    compare (IntersectUR x) (IntersectUR y)
         | x == y = EQ
         | mappend x y == x = LT
         | mappend x y == y = GT
@@ -218,14 +216,13 @@ instance Ord a => Ord (IntersectUR a) where
 -- | Newtype wrapper on a 'BRange' whose 'Ord'ering is subset inclusion, for
 -- testing of inclusion. Note that 'Eq' is inherited directly and __IS
 -- INCONSISTENT__ with 'Ord' on incomparable ranges.
-newtype IntersectBR a = IntersectBR { unIntersectBR :: BRange a}
-    deriving (Eq, Monoid)
+newtype IntersectBR a = IntersectBR { unIntersectBR :: BRange a} deriving Eq
 
 -- | True subset inclusion ordering, where 'EQ' denotes true equality or
 -- incomparability
 instance (Bounded a, Ord a) => Ord (IntersectBR a) where
     {-# INLINABLE compare #-}
-    compare x y
+    compare (IntersectBR x) (IntersectBR y)
         | x == y = EQ
         | mappend x y == x = LT
         | mappend x y == y = GT

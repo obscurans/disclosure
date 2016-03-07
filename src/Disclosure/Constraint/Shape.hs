@@ -1,11 +1,10 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-|
 Module      : Disclosure.Shape
 Description : Datatypes for ranges of individual suit lengths and hand shapes
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
-Portability : GeneralizedNewtypeDeriving
+Portability : portable
 
 Defines three types: 'SuitRange' for a validated range of lengths in an
 unspecified suit, as a closed interval of integers within [0, 13]; 'ShapeRange'
@@ -64,18 +63,28 @@ import Data.Tuple.Homogenous --tuples-homogenous-h98
 import Control.Applicative
 import Control.Monad
 import Disclosure.Base.Util
-import Disclosure.Constraint.Range
+import Disclosure.Base.Range
 
 -- | Wrapper over 'Int' which is 'Bounded' to [@0@, @13@]. Performs no bounds
 -- checking.
 newtype SuitInt = SuitInt { unSuitInt :: Int }
-    deriving (Eq, Ord, Enum, Num, Real, Integral, Show, Read)
+    deriving (Eq, Ord)
 
 instance Bounded SuitInt where
     {-# INLINABLE minBound #-}
     minBound = SuitInt 0
     {-# INLINABLE maxBound #-}
     maxBound = SuitInt 13
+
+-- | Directly as 'Int'
+instance Show SuitInt where
+    {-# INLINABLE show #-}
+    show = show . unSuitInt
+
+-- | Directly as 'Int'
+instance Read SuitInt where
+    {-# INLINABLE readsPrec #-}
+    readsPrec = _'' (map (\(x, y) -> (SuitInt x, y))) readsPrec
 
 -- | A range of lengths [low, high] in an unspecified suit. Trivial\/nonexistent
 -- constraints are represented by low = 0 and\/or high = 13.
@@ -217,8 +226,10 @@ toShapeR = ShapeRange . normShapeN
 normShapeN :: ShapeNum -> Maybe ShapeNum
 {-# INLINABLE normShapeN #-}
 normShapeN = sequenceT . untuple4 . fmap valSuitN . Tuple4 . butterfly calc
-                where calc ((l0, h0), (l1, h1), (l2, h2)) (l, h) =
-                        (max l (13 - h0 - h1 - h2), min h (13 - l0 - l1 - l2))
+                where calc ((SuitInt l0, SuitInt h0), (SuitInt l1, SuitInt h1),
+                           (SuitInt l2, SuitInt h2)) (SuitInt l, SuitInt h) =
+                                (SuitInt $ max l (13 - h0 - h1 - h2),
+                                 SuitInt $ min h (13 - l0 - l1 - l2))
 
 -- | Constructs, validates, and normalizes a 'ShapeMinimal' by constructing a
 -- 'ShapeRange' and minimizing it
@@ -261,17 +272,20 @@ minShapeR :: ShapeRange -> ShapeMinimal
 {-# INLINABLE minShapeR #-}
 minShapeR = ShapeMinimal . fmap result . unShapeR where
     result r = if (known12 r) || (not $ within1 r) then relax r else r
-    known12 ((s, _), (h, _), (d, _), (c, _)) = s + h + d + c >= 12
+    known12 ((SuitInt s, _), (SuitInt h, _), (SuitInt d, _), (SuitInt c, _)) =
+        s + h + d + c >= 12
     within1 (s, h, d, c) = ch s && ch h && ch d && ch c where
-                            ch (l, h) = h - l <= 1
+                            ch (SuitInt l, SuitInt h) = h - l <= 1
     relax = butterfly relMin . butterfly relMax
-    relMin ((_, h1), (_, h2), (_, h3)) o@(l, h)
+    relMin ((_, SuitInt h1), (_, SuitInt h2), (_, SuitInt h3))
+        o@(SuitInt l, h'@(SuitInt h))
         | l == h || l >= 4 = o
-        | 13 - h1 - h2 - h3 >= l = (0, h)
+        | 13 - h1 - h2 - h3 >= l = (minBound, h')
         | otherwise = o
-    relMax ((l1, _), (l2, _), (l3, _)) o@(l, h)
+    relMax ((SuitInt l1, _), (SuitInt l2, _), (SuitInt l3, _))
+        o@(l'@(SuitInt l), SuitInt h)
         | l == h = o
-        | 13 - l1 - l2 - l3 <= h = (l, 13)
+        | 13 - l1 - l2 - l3 <= h = (l', maxBound)
         | otherwise = o
 
 -- | Converts a 'ShapeMinimal' to its isomorphic 'ShapeRange' form
