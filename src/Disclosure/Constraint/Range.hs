@@ -36,7 +36,6 @@ import Data.Ord
 import Data.Maybe
 import Data.Monoid
 import Data.Tuple
-import Data.Tuple.Homogenous
 import Control.Monad
 import Disclosure.Base.Util
 
