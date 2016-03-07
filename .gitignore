@@ -1,3 +1,7 @@
 *.hi
+*.o
+*.dump*
+*.prof
+*.hp
 doc/
 

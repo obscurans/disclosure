@@ -1,10 +1,11 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-|
-Module      : Disclosure.Constraint.Range
+Module      : Disclosure.Base.Range
 Description : Datatypes for unbounded and bounded ranges
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
-Portability : portable
+Portability : GeneralizedNewtypeDeriving
 
 Defines types for unbounded and bounded ranges, which are closed intervals over
 ordered types, represented by a 2-tuple. For unbounded ranges, interval bounds
@@ -12,8 +13,9 @@ are wrapped in 'Maybe', with 'Nothing' representing the appropriate infinity for
 half-open or open ranges. For bounded ranges, 'minBound', 'maxBound' are treated
 as infinities.
 -}
-module Disclosure.Constraint.Range
-( URange
+module Disclosure.Base.Range (
+-- * Datatypes and constructors
+  URange
 , BRange
 , toURange
 , toBRange
@@ -26,14 +28,20 @@ module Disclosure.Constraint.Range
 , bRangeLE
 , uRangeGE
 , bRangeGE
-, compareIntUR
-, compareIntBR
+-- * Set algebra wrappers and operations
+, IntersectUR(..)
+, IntersectBR(..)
+, PUnionUR(..)
+, PUnionBR(..)
+-- * Internal unboxed operations
 , valURangeR
 , valBRangeR
 , showURangeR
 , showBRangeR
 , intURangeR
 , intBRangeR
+, punURangeR
+, punBRangeR
 ) where
 
 import Data.Ord
@@ -108,6 +116,7 @@ showURangeR (mx, my)
     | Nothing <- mx, Just y <- my = show y ++ "-"
     | Just x <- mx, Nothing <- my = show x ++ "+"
     | Just x <- mx, Just y <- my, otherwise = show x ++ "–" ++ show y
+    | otherwise = undefined -- Nothings are equal
 
 {-|
 * An invalid and\/or empty range becomes @\"Null\"@
@@ -190,25 +199,73 @@ intBRangeR :: (Bounded a, Ord a) => (a, a) -> (a, a) -> Maybe (a, a)
 {-# INLINABLE intBRangeR #-}
 intBRangeR (l, h) (l', h') = valBRangeR (max l l', min h h')
 
--- | True subset inclusion partial order for 'URange's. 'EQ' denotes true
--- equality or incomparability.
-compareIntUR :: Ord a => URange a -> URange a -> Ordering
-{-# INLINABLE compareIntUR #-}
-compareIntUR x y
-    | x == y = EQ
-    | mappend x y == x = LT
-    | mappend x y == y = GT
-    | otherwise = EQ
+-- | Newtype wrapper on a 'URange' whose 'Ord'ering is subset inclusion, for
+-- testing of inclusion. Note that 'Eq' is inherited directly and __IS
+-- INCONSISTENT__ with 'Ord' on incomparable ranges.
+newtype IntersectUR a = IntersectUR { unIntersectUR :: URange a }
+    deriving (Eq, Monoid)
 
--- | True subset inclusion partial order for 'BRange's. 'EQ' denotes true
--- equality or incomparability.
-compareIntBR :: (Bounded a, Ord a) => BRange a -> BRange a -> Ordering
-{-# INLINABLE compareIntBR #-}
-compareIntBR x y
-    | x == y = EQ
-    | mappend x y == x = LT
-    | mappend x y == y = GT
-    | otherwise = EQ
+-- | True subset inclusion ordering, where 'EQ' denotes true equality or
+-- incomparability
+instance Ord a => Ord (IntersectUR a) where
+    {-# INLINABLE compare #-}
+    compare x y
+        | x == y = EQ
+        | mappend x y == x = LT
+        | mappend x y == y = GT
+        | otherwise = EQ
+
+-- | Newtype wrapper on a 'BRange' whose 'Ord'ering is subset inclusion, for
+-- testing of inclusion. Note that 'Eq' is inherited directly and __IS
+-- INCONSISTENT__ with 'Ord' on incomparable ranges.
+newtype IntersectBR a = IntersectBR { unIntersectBR :: BRange a}
+    deriving (Eq, Monoid)
+
+-- | True subset inclusion ordering, where 'EQ' denotes true equality or
+-- incomparability
+instance (Bounded a, Ord a) => Ord (IntersectBR a) where
+    {-# INLINABLE compare #-}
+    compare x y
+        | x == y = EQ
+        | mappend x y == x = LT
+        | mappend x y == y = GT
+        | otherwise = EQ
+
+-- | Newtype wrapper on a 'URange' whose commutative 'Monoid' is permissive
+-- union: for two ranges [@l@, @h@] and [@l@', @h@'], the result is [@min l l@',
+-- @max h h@']. Identity is the empty range.
+newtype PUnionUR a = PUnionUR { unPUnionUR :: URange a } deriving (Eq)
+
+instance Ord a => Monoid (PUnionUR a) where
+    {-# INLINABLE mempty #-}
+    mempty = PUnionUR minBound
+    {-# INLINABLE mappend #-}
+    mappend = (liftN2 (unURange . unPUnionUR) (PUnionUR . URange)
+              . liftAbsorbM2) punURangeR
+
+-- | Permissive union operator for unboxed 'URange'
+punURangeR :: Ord a => (Maybe a, Maybe a) -> (Maybe a, Maybe a)
+                        -> Maybe (Maybe a, Maybe a)
+{-# INLINABLE punURangeR #-}
+punURangeR (l, h) (l', h') = valURangeR (min l l',
+                                         liftN2 NLast unNLast max h h')
+
+-- | Newtype wrapper on a 'BRange' whose commutative 'Monoid' is permissive
+-- union: for two ranges [@l@, @h@] and [@l@', @h@'], the result is [@min l l@',
+-- @max h h@']. Identity is the empty range.
+newtype PUnionBR a = PUnionBR { unPUnionBR :: BRange a } deriving (Eq)
+
+instance (Bounded a, Ord a) => Monoid (PUnionBR a) where
+    {-# INLINABLE mempty #-}
+    mempty = PUnionBR minBound
+    {-# INLINABLE mappend #-}
+    mappend = (liftN2 (unBRange . unPUnionBR) (PUnionBR . BRange)
+              . liftAbsorbM2) punBRangeR
+
+-- | Permissive union operator for unboxed 'BRange'
+punBRangeR :: (Bounded a, Ord a) => (a, a) -> (a, a) -> Maybe (a, a)
+{-# INLINABLE punBRangeR #-}
+punBRangeR (l, h) (l', h') = valBRangeR (min l l', max h h')
 
 -- | Constructs and validates a 'URange' for [@x@, @y@]
 toURange' :: Ord a => a -> a -> URange a

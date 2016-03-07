@@ -60,12 +60,20 @@ instance Ord a => Ord (NothingLast a) where
     compare (NLast x) (NLast y) = compare x y
 
 -- | Lifts a binary function into 'Maybe' in an absorptive way: if one argument
--- is 'Nothing' it returns the other, else applies the function.
+-- is 'Nothing' it returns the other, else applies the function
 liftAbsorb2 :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
 {-# INLINABLE liftAbsorb2 #-}
-liftAbsorb2 f Nothing y = y
-liftAbsorb2 f x@(Just _) Nothing = x
+liftAbsorb2 _ Nothing y = y
+liftAbsorb2 _ x@(Just _) Nothing = x
 liftAbsorb2 f (Just x) (Just y) = Just $ f x y
+
+-- | Lifts a binary monadic function into 'Maybe' in an absorptive way: if one
+-- argument is 'Nothing' it returns the other, else applies the function
+liftAbsorbM2 :: (a -> a -> Maybe a) -> Maybe a -> Maybe a -> Maybe a
+{-# INLINABLE liftAbsorbM2 #-}
+liftAbsorbM2 _ Nothing y = y
+liftAbsorbM2 _ x@(Just _) Nothing = x
+liftAbsorbM2 f (Just x) (Just y) = f x y
 
 -- | Utility to simplify 'readsPrec' returns
 readSucc :: b -> a -> [(a, b)]
@@ -73,7 +81,7 @@ readSucc :: b -> a -> [(a, b)]
 readSucc y x = [(x, y)]
 
 -- | Utility for doing suit computations with (all other suits, current suit)
-butterfly :: ((a,a,a) -> a -> b) -> (a, a, a, a) -> (b, b, b, b)
+butterfly :: ((a, a, a) -> a -> b) -> (a, a, a, a) -> (b, b, b, b)
 {-# INLINABLE butterfly #-}
 butterfly f (s, h, d, c) = (f (h, d, c) s, f (s, d, c) h,
                             f (s, h, c) d, f (s, h, d) c)
