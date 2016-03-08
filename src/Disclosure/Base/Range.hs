@@ -27,7 +27,7 @@ module Disclosure.Base.Range (
 , bRangeLE
 , uRangeGE
 , bRangeGE
--- * Set algebra wrappers and operations
+-- * Set algebra operations
 , IntersectUR(..)
 , IntersectBR(..)
 , PUnionUR(..)

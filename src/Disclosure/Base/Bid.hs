@@ -8,8 +8,9 @@ Portability : portable
 
 Defines four enum types for levels, denominations, bids, and non-bid calls.
 -}
-module Disclosure.Base.Bid
-( Lv
+module Disclosure.Base.Bid (
+-- * Datatypes and constructors
+  Lv
 , toLv
 , toLv'
 , unLv
@@ -23,7 +24,8 @@ import Data.Char
 matchCIPre :: String -> String -> Bool
 matchCIPre [] _ = True
 matchCIPre _ [] = False
-matchCIPre (x:xs) (y:ys) = if (toUpper x == toUpper y) then matchCIPre xs ys else False
+matchCIPre (x:xs) (y:ys) = if (toUpper x == toUpper y)
+                           then matchCIPre xs ys else False
 
 -- | A boxed 'Int' for a bid level. Checked to be in [1, 7].
 newtype Lv = Lv {
@@ -54,9 +56,11 @@ instance Enum Lv where
         | i < 0 || i > 6 = error "invalid toEnum Lv"
         | otherwise = Lv (i + 1)
 
+-- | Directly as 'Int'
 instance Show Lv where
     show = show . unLv
 
+-- | Directly as 'Int', checked
 instance Read Lv where
     readsPrec _ (x:xs)
         | x < '1' || x > '7' = []
@@ -66,7 +70,7 @@ instance Read Lv where
 data Denom = C | D | H | S | NT deriving (Eq, Ord, Bounded, Enum, Show)
 
 -- | Accepts any case-insensitive prefix of the denomination names @\"clubs\"@,
--- @\"diamonds\"@, @\"hearts\"@, @\"spades\"@, @\"notrumps\"@.
+-- @\"diamonds\"@, @\"hearts\"@, @\"spades\"@, @\"notrumps\"@, @\"nt\"@.
 -- __TODO:__ allow parses with remainder.
 instance Read Denom where
     readsPrec _ xs
@@ -98,7 +102,8 @@ instance Show Bid where
 
 -- | No space between 'Lv' and 'Denom'.
 instance Read Bid where
-    readsPrec x xt = [ (Bid l d, r) | (l, xs) <- readsPrec x xt, (d, r) <- readsPrec x xs ]
+    readsPrec x xt = [ (Bid l d, r) | (l, xs) <- readsPrec x xt,
+                                      (d, r) <- readsPrec x xs ]
 
 -- | Enumeration of the non-bid calls
 data Call = Pass | Dbl | Rdbl deriving (Eq, Bounded, Enum, Show)
@@ -118,3 +123,4 @@ instance Read Call where
         | matchCIPre x "x" = succeed Dbl
         | otherwise = []
         where succeed y = [(y, [])]
+

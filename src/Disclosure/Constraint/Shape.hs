@@ -1,5 +1,5 @@
 {-|
-Module      : Disclosure.Shape
+Module      : Disclosure.Constraint.Shape
 Description : Datatypes for ranges of individual suit lengths and hand shapes
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
@@ -29,8 +29,9 @@ reflect that. For example, knowing =6♠ and =6♥ is sufficient to derive 6♠ 
 
 'ShapeRange' is isomorphic to 'ShapeMinimal'.
 -}
-module Disclosure.Constraint.Shape
-( SuitInt(..)
+module Disclosure.Constraint.Shape (
+-- * Single suit range datatypes
+  SuitInt(..)
 , SuitNum
 , SuitRange
 , toSuitR
@@ -39,6 +40,7 @@ module Disclosure.Constraint.Shape
 , suitEQ
 , suitLE
 , suitGE
+-- * Hand shape range datatypes
 , ShapeNum
 , ShapeRange
 , ShapeMinimal
