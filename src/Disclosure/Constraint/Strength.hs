@@ -12,36 +12,29 @@ specifically relating to shape, or presence/absence of specific cards.
 module Disclosure.Constraint.Strength (
 -- * Datatypes and constructors
   Modifier(..)
-, IntStr(..)
-, IntStrR
-, FracStr
-, toFracStr
-, FracStrR
--- ** Integral strength convenience constructors
+, Strength
+, toStrength
+, StrengthR
+-- ** Convenience constructors
+, toStrength'
+, intStr
 , intStr'
+, strengthEQ
+, strengthEQ'
 , intStrEQ
 , intStrEQ'
+, strengthLE
+, strengthLE'
 , intStrLE
 , intStrLE'
+, strengthGE
+, strengthGE'
 , intStrGE
 , intStrGE'
+, toStrengthR
+, toStrengthR'
 , toIntStrR
 , toIntStrR'
--- ** Fractional strength convenience constructors
-, fracStr'
-, fracStr''
-, fracStrEQ
-, fracStrEQ'
-, fracStrEQ''
-, fracStrLE
-, fracStrLE'
-, fracStrLE''
-, fracStrGE
-, fracStrGE'
-, fracStrGE''
-, toFracStrR
-, toFracStrR'
-, toFracStrR''
 -- * Set algebra reexports from Base.Range
 , IntersectUR(..)
 , PUnionUR(..)
@@ -55,7 +48,7 @@ import Disclosure.Base.Range
 data Modifier = (:--) | (:-) | (:=) | (:+) | (:++)
     deriving (Eq, Ord, Bounded, Enum)
 
--- | Shows in superscript, @:=@ shows nothing (no modifier)
+-- | Prints in superscript, ':=' becomes @\"\"@ (no modifier)
 instance Show Modifier where
     {-# INLINABLE show #-}
     show (:--) = "⁻⁻"
@@ -64,27 +57,17 @@ instance Show Modifier where
     show (:+) = "⁺"
     show (:++) = "⁺⁺"
 
--- | An integral strength value, with optional modifier
-data IntStr = IntStr Int Modifier deriving (Eq, Ord)
-
-instance Show IntStr where
-    {-# INLINABLE show #-}
-    show (IntStr i m) = show i ++ show m
-
--- | An unbounded range of 'IntStr'. Instances: 'Bounded', 'Eq', 'Ord', 'Show',
--- 'Monoid'.
-type IntStrR = URange IntStr
-
 -- | A mixed fractional strength value, with optional modifier. Fractions are
 -- /not/ reduced. Numerator is kept less in magnitude than the denominator, with
 -- the same sign as the integer part.
-data FracStr = FracStr Int Int Int Modifier deriving Eq
+data Strength = Strength Int Int Int Modifier
 
--- | Shows (integer part)(numerator in superscript)(fraction slash)(denominator
--- in subscript)(modifier), with fraction omitted if zero
-instance Show FracStr where
+-- | Prints (integer part)(numerator in superscript)@&frasl;@(denominator in
+-- subscript)(modifier), with integer xor fraction omitted if zero, @\"0\"@ if
+-- numerically zero.
+instance Show Strength where
     {-# INLINABLE show #-}
-    show (FracStr d i n m)
+    show (Strength d i n m)
         | i == 0 && n /= 0 = show' n ++ "⁄" ++ show_ d ++ show m
         | n == 0 = show i ++ show m
         | otherwise = show i ++ show' n ++ "⁄" ++ show_ d ++ show m where
@@ -92,174 +75,161 @@ instance Show FracStr where
                   . abs
             show_ = map (("₀₁₂₃₄₅₆₇₈₉" !!) . (subtract $ ord '0') . ord) . show
 
-instance Ord FracStr where
-    compare (FracStr d i n m) (FracStr d' i' n' m')
+-- | Mixed fractions compared numerically, lexicographically 'Modifier'
+instance Eq Strength where
+    (Strength d i n m) == (Strength d' i' n' m') =
+        (i * d + n) * d' == (i' * d' + n') * d && m == m'
+
+-- | Mixed fractions compared numerically, lexicographically 'Modifier'
+instance Ord Strength where
+    compare (Strength d i n m) (Strength d' i' n' m')
         = compare ((i * d + n) * d', m) ((i' * d' + n') * d, m')
 
--- | Constructs and normalizes a 'FracStr'
-toFracStr :: Int -- ^ Fraction denominator
+-- | Constructs and normalizes a 'Strength'
+toStrength :: Int -- ^ Fraction denominator
           -> Int -- ^ Integer part
           -> Int -- ^ Fraction numerator
-          -> Modifier -> FracStr
-{-# INLINABLE toFracStr #-}
-toFracStr d i n
+          -> Modifier -> Strength
+{-# INLINABLE toStrength #-}
+toStrength d i n
     | n /= 0 && d == 0 = error "zero denominator toFracStr"
-    | n == 0 && d == 0 = FracStr 1 i 0
-    | otherwise = FracStr (abs d) i' n'
+    | n == 0 && d == 0 = Strength 1 i 0
+    | otherwise = Strength (abs d) i' n'
     where (i', n') = quotRem ((i * d + n) * signum d) (abs d)
 
--- | An unbounded range of 'FracStr'. Instances: 'Bounded', 'Eq', 'Ord', 'Show',
--- 'Monoid'.
-type FracStrR = URange FracStr
+-- | An unbounded range of 'Strength'. Instances: 'Bounded', 'Eq', 'Ord',
+-- 'Show', 'Monoid'.
+type StrengthR = URange Strength
 
--- | Constructs an 'IntStr' with no modifier
-intStr' :: Int -> IntStr
+-- | Constructs a 'Strength' with no modifier
+toStrength' :: Int -- ^ Fraction denominatior
+         -> Int -- ^ Integer part
+         -> Int -- ^ Fraction numerator
+         -> Strength
+{-# INLINABLE toStrength' #-}
+toStrength' d i = flip (Strength d i) (:=)
+
+-- | Constructs an integral 'Strength'
+intStr :: Int -> Modifier -> Strength
+{-# INLINABLE intStr #-}
+intStr = flip (Strength 1) 0
+
+-- | Constructs an integral 'Strength' with no modifier
+intStr' :: Int -> Strength
 {-# INLINABLE intStr' #-}
-intStr' = flip IntStr (:=)
+intStr' = flip intStr (:=)
 
--- | Constructs an 'IntStrR' for that exact strength value
-intStrEQ :: Int -> Modifier -> IntStrR
+-- | Constructs a 'StrengthR' for that exact strength value
+strengthEQ :: Int -- ^ Fraction denominator
+          -> Int -- ^ Integer part
+          -> Int -- ^ Fraction numerator
+          -> Modifier -> StrengthR
+{-# INLINABLE strengthEQ #-}
+strengthEQ = _''' uRangeEQ . Strength
+
+-- | Constructs a 'StrengthR' for that exact strength value with no modifier
+strengthEQ' :: Int -- ^ Fraction denominator
+           -> Int -- ^ Integer part
+           -> Int -- ^ Fraction numerator
+           -> StrengthR
+{-# INLINABLE strengthEQ' #-}
+strengthEQ' = _'' uRangeEQ . toStrength'
+
+-- | Constructs a 'StrengthR' for that exact integral strength value
+intStrEQ :: Int -> Modifier -> StrengthR
 {-# INLINABLE intStrEQ #-}
-intStrEQ = _' uRangeEQ . IntStr
+intStrEQ = _' uRangeEQ . intStr
 
--- | Constructs an 'IntStrR' for that exact strength value with no modifier
-intStrEQ' :: Int -> IntStrR
+-- | Constructs a 'StrengthR' for that exact integral strength value with no
+-- modifier
+intStrEQ' :: Int -> StrengthR
 {-# INLINABLE intStrEQ' #-}
 intStrEQ' = uRangeEQ . intStr'
 
--- | Constructs an 'IntStrR' for ≤ that strength value
-intStrLE :: Int -> Modifier -> IntStrR
-{-# INLINABLE intStrLE #-}
-intStrLE = _' uRangeLE . IntStr
+-- | Constructs a 'StrengthR' for ≤ that strength value
+strengthLE :: Int -- ^ Fraction denominator
+          -> Int -- ^ Integer part
+          -> Int -- ^ Fraction numerator
+          -> Modifier -> StrengthR
+{-# INLINABLE strengthLE #-}
+strengthLE = _''' uRangeLE . Strength
 
--- | Constructs an 'IntStrR' for ≤ that strength value with no modifier
-intStrLE' :: Int -> IntStrR
+-- | Constructs a 'StrengthR' for ≤ that strength value with no modifier
+strengthLE' :: Int -- ^ Fraction denominator
+           -> Int -- ^ Integer part
+           -> Int -- ^ Fraction numerator
+           -> StrengthR
+{-# INLINABLE strengthLE' #-}
+strengthLE' = _'' uRangeLE . toStrength'
+
+-- | Constructs a 'StrengthR' for ≤ that integral strength value
+intStrLE :: Int -> Modifier -> StrengthR
+{-# INLINABLE intStrLE #-}
+intStrLE = _' uRangeLE . intStr
+
+-- | Constructs a 'StrengthR' for ≤ that integral strength value with no
+-- modifier
+intStrLE' :: Int -> StrengthR
 {-# INLINABLE intStrLE' #-}
 intStrLE' = uRangeLE . intStr'
 
--- | Constructs an 'IntStrR' for ≥ that strength value
-intStrGE :: Int -> Modifier -> IntStrR
-{-# INLINABLE intStrGE #-}
-intStrGE = _' uRangeGE . IntStr
+-- | Constructs a 'StrengthR' for ≥ that strength value
+strengthGE :: Int -- ^ Fraction denominator
+          -> Int -- ^ Integer part
+          -> Int -- ^ Fraction numerator
+          -> Modifier -> StrengthR
+{-# INLINABLE strengthGE #-}
+strengthGE = _''' uRangeGE . Strength
 
--- | Constructs an 'IntStrR' for ≥ that strength value with no modifier
-intStrGE' :: Int -> IntStrR
+-- | Constructs a 'StrengthR' for ≥ that strength value with no modifier
+strengthGE' :: Int -- ^ Fraction denominator
+           -> Int -- ^ Integer part
+           -> Int -- ^ Fraction numerator
+           -> StrengthR
+{-# INLINABLE strengthGE' #-}
+strengthGE' = _'' uRangeLE . toStrength'
+
+-- | Constructs a 'StrengthR' for ≥ that integral strength value
+intStrGE :: Int -> Modifier -> StrengthR
+{-# INLINABLE intStrGE #-}
+intStrGE = _' uRangeGE . intStr
+
+-- | Constructs a 'StrengthR' for ≥ that integral strength value with no
+-- modifier
+intStrGE' :: Int -> StrengthR
 {-# INLINABLE intStrGE' #-}
 intStrGE' = uRangeGE . intStr'
 
--- | Constructs and validates an 'IntStrR' with strength values and modifiers
-toIntStrR :: Int -> Modifier -> Int -> Modifier -> IntStrR
-{-# INLINABLE toIntStrR #-}
-toIntStrR i m = _' (toURange' (IntStr i m)) . IntStr
-
--- | Constructs and validates an 'IntStr' with strength values without modifiers
-toIntStrR' :: Int -> Int -> IntStrR
-{-# INLINABLE toIntStrR' #-}
-toIntStrR' = liftN2 intStr' id toURange'
-
--- | Constructs a 'FracStr' with no modifier
-fracStr' :: Int -- ^ Fraction denominatior
-         -> Int -- ^ Integer part
-         -> Int -- ^ Fraction numerator
-         -> FracStr
-{-# INLINABLE fracStr' #-}
-fracStr' d i = flip (FracStr d i) (:=)
-
--- | Constructs a 'FracStr' with no modifier and no fractional part
-fracStr'' :: Int -> FracStr
-{-# INLINABLE fracStr'' #-}
-fracStr'' = flip (flip (FracStr 1) 0) (:=)
-
--- | Constructs a 'FracStrR' for that exact strength value
-fracStrEQ :: Int -- ^ Fraction denominator
-          -> Int -- ^ Integer part
-          -> Int -- ^ Fraction numerator
-          -> Modifier -> FracStrR
-{-# INLINABLE fracStrEQ #-}
-fracStrEQ = _''' uRangeEQ . FracStr
-
--- | Constructs a 'FracStrR' for that exact strength value with no modifier
-fracStrEQ' :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
-           -> Int -- ^ Fraction numerator
-           -> FracStrR
-{-# INLINABLE fracStrEQ' #-}
-fracStrEQ' = _'' uRangeEQ . fracStr'
-
--- | Constructs a 'FracStrR' for that exact strength value with no modifer and
--- no fractional part
-fracStrEQ'' :: Int -> FracStrR
-{-# INLINABLE fracStrEQ'' #-}
-fracStrEQ'' = uRangeEQ . fracStr''
-
--- | Constructs a 'FracStrR' for ≤ that strength value
-fracStrLE :: Int -- ^ Fraction denominator
-          -> Int -- ^ Integer part
-          -> Int -- ^ Fraction numerator
-          -> Modifier -> FracStrR
-{-# INLINABLE fracStrLE #-}
-fracStrLE = _''' uRangeLE . FracStr
-
--- | Constructs a 'FracStrR' for ≤ that strength value with no modifier
-fracStrLE' :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
-           -> Int -- ^ Fraction numerator
-           -> FracStrR
-{-# INLINABLE fracStrLE' #-}
-fracStrLE' = _'' uRangeLE . fracStr'
-
--- | Constructs a 'FracStrR' for ≤ that strength value with no modifier and no
--- fractional part
-fracStrLE'' :: Int -> FracStrR
-{-# INLINABLE fracStrLE'' #-}
-fracStrLE'' = uRangeLE . fracStr''
-
--- | Constructs a 'FracStrR' for ≥ that strength value
-fracStrGE :: Int -- ^ Fraction denominator
-          -> Int -- ^ Integer part
-          -> Int -- ^ Fraction numerator
-          -> Modifier -> FracStrR
-{-# INLINABLE fracStrGE #-}
-fracStrGE = _''' uRangeGE . FracStr
-
--- | Constructs a 'FracStrR' for ≥ that strength value with no modifier
-fracStrGE' :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
-           -> Int -- ^ Fraction numerator
-           -> FracStrR
-{-# INLINABLE fracStrGE' #-}
-fracStrGE' = _'' uRangeLE . fracStr'
-
--- | Constructs a 'FracStrR' for ≥ that strength value with no modifier and no
--- fractional part
-fracStrGE'' :: Int -> FracStrR
-{-# INLINABLE fracStrGE'' #-}
-fracStrGE'' = uRangeLE . fracStr''
-
--- | Constructs and validates a 'FracStrR' with strength values
-toFracStrR :: Int -- ^ Common fraction denominator
+-- | Constructs and validates a 'StrengthR' with strength values
+toStrengthR :: Int -- ^ Common fraction denominator
            -> Int -- ^ Integer part, lower bound
            -> Int -- ^ Fraction numerator, lower bound
            -> Modifier
            -> Int -- ^ Integer part, upper bound
            -> Int -- ^ Fraction numerator, upper bound
-           -> Modifier -> FracStrR
-{-# INLINABLE toFracStrR #-}
-toFracStrR d i n m = _'' (toURange' (FracStr d i n m)) . FracStr d
+           -> Modifier -> StrengthR
+{-# INLINABLE toStrengthR #-}
+toStrengthR d i n m = _'' (toURange' (Strength d i n m)) . Strength d
 
--- | Constructs and validates a 'FracStrR' with strength values without modifier
-toFracStrR' :: Int -- ^ Common fraction denominator
+-- | Constructs and validates a 'StrengthR' with strength values without
+-- modifier
+toStrengthR' :: Int -- ^ Common fraction denominator
             -> Int -- ^ Integer part, lower bound
             -> Int -- ^ Fraction numerator, lower bound
             -> Int -- ^ Integer part, upper bound
             -> Int -- ^ Fraction numerator, upper bound
-            -> FracStrR
-{-# INLINABLE toFracStrR' #-}
-toFracStrR' d i n = _' (toURange' (fracStr' d i n)) . fracStr' d
+            -> StrengthR
+{-# INLINABLE toStrengthR' #-}
+toStrengthR' d i n = _' (toURange' (toStrength' d i n)) . toStrength' d
 
--- | Constructs and validates a 'FracStrR' with strength values without modifier
--- nor fractional part
-toFracStrR'' :: Int -> Int -> FracStrR
-{-# INLINABLE toFracStrR'' #-}
-toFracStrR'' = liftN2 fracStr'' id toURange'
+-- | Constructs and validates a 'StrengthR' with integral strength values
+toIntStrR :: Int -> Modifier -> Int -> Modifier -> StrengthR
+{-# INLINABLE toIntStrR #-}
+toIntStrR i m = _' (toURange' (intStr i m)) . intStr
+
+-- | Constructs and validates a 'StrengthR' with integral strength values
+-- without modifiers
+toIntStrR' :: Int -> Int -> StrengthR
+{-# INLINABLE toIntStrR' #-}
+toIntStrR' = liftN2 intStr' id toURange'
 
