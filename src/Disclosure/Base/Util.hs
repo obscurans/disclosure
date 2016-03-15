@@ -15,17 +15,27 @@ import Data.Tuple.Homogenous --tuples-homogenous-h98
 import Control.Applicative
 
 -- | Modifies a composing function to \"wait for one argument\"
-_' :: (b -> c) -> (a -> b) -> (a -> c)
+_' :: (b -> c) -> (a -> b) -> a -> c
 {-# INLINABLE _' #-}
 _' = (.)
 
 -- | Modifies a composing function to \"wait for two arguments\"
-_'' :: (c -> d) -> (a -> b -> c) -> (a -> b -> d)
+_'' :: (c -> d) -> (a -> b -> c) -> a -> b -> d
 {-# INLINABLE _'' #-}
 _'' = _' . _'
 
+-- | Modifies a composing function to \"wait for three arguments\"
+_''' :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
+{-# INLINABLE _''' #-}
+_''' = _' . _' . _'
+
+-- | Modifies a composing function to \"wait for four arguments\"
+_'''' :: (e -> f) -> (a -> b -> c -> d -> e) -> a -> b -> c -> d -> f
+{-# INLINABLE _'''' #-}
+_'''' = _' . _' . _' . _'
+
 -- | Modifies a composing function to \"skip one argument\"
-__' :: (a -> b) -> (b -> c) -> (a -> c)
+__' :: (a -> b) -> (b -> c) -> a -> c
 {-# INLINABLE __' #-}
 __' = flip (.)
 
@@ -35,7 +45,7 @@ applyA2 :: Applicative f => f (a -> b -> c) -> f a -> f b -> f c
 applyA2 f a = (f <*> a <*>)
 
 -- | Lifts a 2-function using a un-constructor and an output constructor
-liftN2 :: (c -> a) -> (b -> d) -> (a -> a -> b) -> (c -> c -> d)
+liftN2 :: (c -> a) -> (b -> d) -> (a -> a -> b) -> c -> c -> d
 {-# INLINABLE liftN2 #-}
 liftN2 f g = curry . _' g . __' (untuple2 . fmap f . Tuple2) . uncurry
 

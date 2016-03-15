@@ -36,6 +36,7 @@ module Disclosure.Constraint.Shape (
 , SuitRange
 , toSuitR
 , unSuitR
+-- ** Convenience constructors
 , toSuitR'
 , suitEQ
 , suitLE
@@ -50,6 +51,7 @@ module Disclosure.Constraint.Shape (
 , unShapeM
 , minShapeR
 , expShapeM
+-- ** Convenience constructors
 , shapeHand
 , shapeS
 , shapeH

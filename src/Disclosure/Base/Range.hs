@@ -20,6 +20,7 @@ module Disclosure.Base.Range (
 , toBRange
 , unURange
 , unBRange
+-- ** Convenience constructors
 , toURange'
 , uRangeEQ
 , bRangeEQ
@@ -77,7 +78,7 @@ toURange = _'' (URange . valURangeR) (,)
 -- | Validates an unboxed 'URange'
 valURangeR :: Ord a => (Maybe a, Maybe a) -> Maybe (Maybe a, Maybe a)
 {-# INLINABLE valURangeR #-}
-valURangeR = toMaybe (\(x, y) -> maybe True id (liftM2 (>=) x y))
+valURangeR = toMaybe (\(x, y) -> maybe True id (liftM2 (<=) x y))
 
 -- | Constructs and validates a 'BRange'
 toBRange :: (Bounded a, Ord a) => a -> a -> BRange a
@@ -269,7 +270,7 @@ toURange' :: Ord a => a -> a -> URange a
 {-# INLINABLE toURange' #-}
 toURange' = liftN2 Just id toURange
 
--- | Constructs a 'Range' for [@x@, @x@]
+-- | Constructs a 'URange' for [@x@, @x@]
 uRangeEQ :: Ord a => a -> URange a
 {-# INLINABLE uRangeEQ #-}
 uRangeEQ = join toURange . Just
