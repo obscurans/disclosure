@@ -40,8 +40,12 @@ module Disclosure.Base.Range (
 , showBRangeR
 , intURangeR
 , intBRangeR
+, unsafeIntURangeR
+, unsafeIntBRangeR
 , punURangeR
 , punBRangeR
+, unsafePunURangeR
+, unsafePunBRangeR
 ) where
 
 import Data.Ord
@@ -59,7 +63,7 @@ Ranges are valid if low ≤ high. Invalid and\/or empty ranges are (outer)
 -}
 newtype URange a = URange {
     -- | Unboxes a 'URange'
-    unURange :: Maybe (Maybe a, Maybe a) } deriving (Eq)
+    unURange :: Maybe (Maybe a, Maybe a) } deriving Eq
 
 {-| A validated closed interval over a bounded, ordered type, represented as a
 boxed @'Maybe' (a, a)@ for [low, high]. Ranges are valid if @minBound@ ≤ low ≤
@@ -68,7 +72,7 @@ Invalid and\/or empty ranges are 'Nothing'.
 -}
 newtype BRange a = BRange {
     -- | Unboxes a 'BRange'
-    unBRange :: Maybe (a, a) } deriving (Eq)
+    unBRange :: Maybe (a, a) } deriving Eq
 
 -- | Constructs and validates a 'URange'
 toURange :: Ord a => Maybe a -> Maybe a -> URange a
@@ -181,10 +185,15 @@ instance Ord a => Monoid (URange a) where
 
 -- | Intersection operator for unboxed 'URange'
 intURangeR :: Ord a => (Maybe a, Maybe a) -> (Maybe a, Maybe a)
-                        -> Maybe (Maybe a, Maybe a)
+                    -> Maybe (Maybe a, Maybe a)
 {-# INLINABLE intURangeR #-}
-intURangeR (l, h) (l', h') = valURangeR (liftAbsorb2 max l l',
-                                         liftAbsorb2 min h h')
+intURangeR = _' valURangeR . unsafeIntURangeR
+
+-- | __UNCHECKED__ intersection operator for unboxed 'URange'
+unsafeIntURangeR :: Ord a => (Maybe a, Maybe a) -> (Maybe a, Maybe a)
+                          -> (Maybe a, Maybe a)
+{-# INLINABLE unsafeIntURangeR #-}
+unsafeIntURangeR (l, h) (l', h') = (liftAbsorb2 max l l', liftAbsorb2 min h h')
 
 -- | The commutative operation intersects the two ranges. Identity is the
 -- universal range.
@@ -197,7 +206,12 @@ instance (Bounded a, Ord a) => Monoid (BRange a) where
 -- | Intersection operator for unboxed 'BRange'
 intBRangeR :: (Bounded a, Ord a) => (a, a) -> (a, a) -> Maybe (a, a)
 {-# INLINABLE intBRangeR #-}
-intBRangeR (l, h) (l', h') = valBRangeR (max l l', min h h')
+intBRangeR = _' valBRangeR . unsafeIntBRangeR
+
+-- | __UNCHECKED__ intersection operator for unboxed 'BRange'
+unsafeIntBRangeR :: Ord a => (a, a) -> (a, a) -> (a, a)
+{-# INLINABLE unsafeIntBRangeR #-}
+unsafeIntBRangeR (l, h) (l', h') = (max l l', min h h')
 
 -- | Newtype wrapper on a 'URange' whose 'Ord'ering is subset inclusion, for
 -- testing of inclusion. Note that 'Eq' is inherited directly and __IS
@@ -232,7 +246,7 @@ instance (Bounded a, Ord a) => Ord (IntersectBR a) where
 -- | Newtype wrapper on a 'URange' whose commutative 'Monoid' is permissive
 -- union: for two ranges [@l@, @h@] and [@l@', @h@'], the result is [@min l l@',
 -- @max h h@']. Identity is the empty range.
-newtype PUnionUR a = PUnionUR { unPUnionUR :: URange a } deriving (Eq)
+newtype PUnionUR a = PUnionUR { unPUnionUR :: URange a } deriving Eq
 
 instance Ord a => Monoid (PUnionUR a) where
     {-# INLINABLE mempty #-}
@@ -243,15 +257,20 @@ instance Ord a => Monoid (PUnionUR a) where
 
 -- | Permissive union operator for unboxed 'URange'
 punURangeR :: Ord a => (Maybe a, Maybe a) -> (Maybe a, Maybe a)
-                        -> Maybe (Maybe a, Maybe a)
+                    -> Maybe (Maybe a, Maybe a)
 {-# INLINABLE punURangeR #-}
-punURangeR (l, h) (l', h') = valURangeR (min l l',
-                                         liftN2 NLast unNLast max h h')
+punURangeR = _' valURangeR . unsafePunURangeR
+
+-- | __UNCHECKED__ permissive union operator for unboxed 'URange'
+unsafePunURangeR :: Ord a => (Maybe a, Maybe a) -> (Maybe a, Maybe a)
+                          -> (Maybe a, Maybe a)
+{-# INLINABLE unsafePunURangeR #-}
+unsafePunURangeR (l, h) (l', h') = (min l l', liftN2 NLast unNLast max h h')
 
 -- | Newtype wrapper on a 'BRange' whose commutative 'Monoid' is permissive
 -- union: for two ranges [@l@, @h@] and [@l@', @h@'], the result is [@min l l@',
 -- @max h h@']. Identity is the empty range.
-newtype PUnionBR a = PUnionBR { unPUnionBR :: BRange a } deriving (Eq)
+newtype PUnionBR a = PUnionBR { unPUnionBR :: BRange a } deriving Eq
 
 instance (Bounded a, Ord a) => Monoid (PUnionBR a) where
     {-# INLINABLE mempty #-}
@@ -263,7 +282,12 @@ instance (Bounded a, Ord a) => Monoid (PUnionBR a) where
 -- | Permissive union operator for unboxed 'BRange'
 punBRangeR :: (Bounded a, Ord a) => (a, a) -> (a, a) -> Maybe (a, a)
 {-# INLINABLE punBRangeR #-}
-punBRangeR (l, h) (l', h') = valBRangeR (min l l', max h h')
+punBRangeR = _' valBRangeR . unsafePunBRangeR
+
+-- | __UNCHECKED__ permissive union operator for unboxed 'BRange'
+unsafePunBRangeR :: Ord a => (a, a) -> (a, a) -> (a, a)
+{-# INLINABLE unsafePunBRangeR #-}
+unsafePunBRangeR (l, h) (l', h') = (min l l', max h h')
 
 -- | Constructs and validates a 'URange' for [@x@, @y@]
 toURange' :: Ord a => a -> a -> URange a
