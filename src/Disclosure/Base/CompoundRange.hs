@@ -28,6 +28,8 @@ module Disclosure.Base.CompoundRange (
 , colCBRange
 , punCURange
 , punCBRange
+, IntersectCUR(..)
+, IntersectCBR(..)
 , UnionCUR(..)
 , UnionCBR(..)
 -- * Internal unboxed operations
@@ -337,6 +339,38 @@ punCBRangeR' :: (Bounded a, Ord a) => [(a, a)] -> BRange a
 {-# INLINABLE punCBRangeR' #-}
 punCBRangeR' [] = minBound
 punCBRangeR' x = toBRange (minimum l) (maximum h) where (l, h) = unzip x
+
+-- | Newtype wrapper on a 'CURange' whose 'Ord'ering is subset inclusion, for
+-- testing of inclusion. Note that 'Eq' is inherited directly and __IS
+-- INCONSISTENT__ with 'Ord' on incomparable ranges.
+newtype IntersectCUR a = IntersectCUR { unIntersectCUR :: CURange a }
+    deriving Eq
+
+-- | True subset inclusion ordering, where 'EQ' denotes true equality or
+-- incomparability
+instance (Bounded a, Ord a) => Ord (IntersectCUR a) where
+    {-# INLINABLE compare #-}
+    compare (IntersectCUR x) (IntersectCUR y)
+        | x == y = EQ
+        | mappend x y == x = LT
+        | mappend x y == y = GT
+        | otherwise = EQ
+
+-- | Newtype wrapper on a 'CBRange' whose 'Ord'ering is subset inclusion, for
+-- testing of inclusion. Note that 'Eq' is inherited directly and __IS
+-- INCONSISTENT__ with 'Ord' on incomparable ranges.
+newtype IntersectCBR a = IntersectCBR { unIntersectCBR :: CBRange a }
+    deriving Eq
+
+-- | True subset inclusion ordering, where 'EQ' denotes true equality or
+-- incomparability
+instance (Bounded a, Ord a) => Ord (IntersectCBR a) where
+    {-# INLINABLE compare #-}
+    compare (IntersectCBR x) (IntersectCBR y)
+        | x == y = EQ
+        | mappend x y == x = LT
+        | mappend x y == y = GT
+        | otherwise = EQ
 
 -- | Newtype wrapper for a 'CURange' whose commutative 'Monoid' is set union,
 -- with identity being the empty set.
