@@ -224,9 +224,10 @@ instance Ord a => Ord (IntersectUR a) where
     {-# INLINABLE compare #-}
     compare (IntersectUR x) (IntersectUR y)
         | x == y = EQ
-        | mappend x y == x = LT
-        | mappend x y == y = GT
+        | intersection == x = LT
+        | intersection == y = GT
         | otherwise = EQ
+        where intersection = mappend x y
 
 -- | Newtype wrapper on a 'BRange' whose 'Ord'ering is subset inclusion, for
 -- testing of inclusion. Note that 'Eq' is inherited directly and __IS
@@ -239,9 +240,10 @@ instance (Bounded a, Ord a) => Ord (IntersectBR a) where
     {-# INLINABLE compare #-}
     compare (IntersectBR x) (IntersectBR y)
         | x == y = EQ
-        | mappend x y == x = LT
-        | mappend x y == y = GT
+        | intersection == x = LT
+        | intersection == y = GT
         | otherwise = EQ
+        where intersection = mappend x y
 
 -- | Newtype wrapper on a 'URange' whose commutative 'Monoid' is permissive
 -- union: for two ranges [@l@, @h@] and [@l@', @h@'], the result is [@min l l@',

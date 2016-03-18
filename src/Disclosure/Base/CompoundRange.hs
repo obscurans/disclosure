@@ -352,9 +352,10 @@ instance (Bounded a, Ord a) => Ord (IntersectCUR a) where
     {-# INLINABLE compare #-}
     compare (IntersectCUR x) (IntersectCUR y)
         | x == y = EQ
-        | mappend x y == x = LT
-        | mappend x y == y = GT
+        | intersection == x = LT
+        | intersection == y = GT
         | otherwise = EQ
+        where intersection = mappend x y
 
 -- | Newtype wrapper on a 'CBRange' whose 'Ord'ering is subset inclusion, for
 -- testing of inclusion. Note that 'Eq' is inherited directly and __IS
@@ -368,9 +369,10 @@ instance (Bounded a, Ord a) => Ord (IntersectCBR a) where
     {-# INLINABLE compare #-}
     compare (IntersectCBR x) (IntersectCBR y)
         | x == y = EQ
-        | mappend x y == x = LT
-        | mappend x y == y = GT
+        | intersection == x = LT
+        | intersection == y = GT
         | otherwise = EQ
+        where intersection = mappend x y
 
 -- | Newtype wrapper for a 'CURange' whose commutative 'Monoid' is set union,
 -- with identity being the empty set.
