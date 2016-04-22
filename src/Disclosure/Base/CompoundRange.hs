@@ -19,6 +19,7 @@ module Disclosure.Base.CompoundRange (
 , unCURange
 , unCBRange
 -- ** Convenience constructors
+, toCURange'
 , singURange
 , singBRange
 , compURange
@@ -32,6 +33,11 @@ module Disclosure.Base.CompoundRange (
 , IntersectCBR(..)
 , UnionCUR(..)
 , UnionCBR(..)
+-- * Transformation operations
+, transCURange
+, transCBRange
+, unsafeTransCURange
+, unsafeTransCBRange
 -- * Internal unboxed operations
 , normCURangeR
 , normCBRangeR
@@ -47,6 +53,8 @@ module Disclosure.Base.CompoundRange (
 , intCBRangeR
 , uniCURangeR
 , uniCBRangeR
+, transCURangeR
+, transCBRangeR
 ) where
 
 import Data.Monoid
@@ -91,6 +99,14 @@ newtype CBRange a = CBRange {
 toCURange :: Ord a => [(Maybe a, Maybe a)] -> CURange a
 {-# INLINABLE toCURange #-}
 toCURange = CURange . normCURangeR
+
+-- | Normalizes and constructs a 'CURange' with no infinite intervals by
+-- enforcing all subintervals are valid, subintervals are pairwise disjoint
+-- (unioned if overlapping), and subintervals are listed in strictly ascending
+-- order.
+toCURange' :: Ord a => [(a, a)] -> CURange a
+{-# INLINABLE toCURange' #-}
+toCURange' = toCURange . map (\(x, y) -> (Just x, Just y))
 
 -- | Normalizes an unboxed 'CURange', invariant listed in 'toCURange'.
 -- Essentially does insertion sort with unioning.
@@ -265,7 +281,7 @@ intCBRangeR xs@(x@(x1, x2):xt) ys@(y@(y1, y2):yt)
 
 -- | Collapses the subintervals of a 'CURange' with a function that determines
 -- whether [@_@, @x@] and [@y@, @_@] are \"close enough\" to be treated as
--- touching and combined. Function can assume it will be called with @x<y@.
+-- touching and combined. Function can assume it will be called with @x < y@.
 colCURange :: Ord a => (a -> a -> Bool) -> CURange a -> CURange a
 {-# INLINABLE colCURange #-}
 colCURange f (CURange x) = CURange $ colCURangeR f x
@@ -283,7 +299,7 @@ colCURangeR f (x@(x1, x2):ys@(y@(y1, y2):yt))
 
 -- | Collapses the subintervals of a 'CBRange' with a function that determines
 -- whether [@_@, @x@] and [@y@, @_@] are \"close enough\" to be treated as
--- touching and combined. Function can assume it will be called with @x<y@.
+-- touching and combined. Function can assume it will be called with @x < y@.
 colCBRange :: (Bounded a, Ord a) => (a -> a -> Bool) -> CBRange a -> CBRange a
 {-# INLINABLE colCBRange #-}
 colCBRange f (CBRange x) = CBRange $ colCBRangeR f x
@@ -428,4 +444,62 @@ uniCBRangeR xs@(x@(x1, x2):xt) ys@(y@(y1, y2):yt)
     | otherwise = uniCBRangeR rx ry
     where (rx, ry) = if x2 < y2 then (xt, c:yt) else (c:xt, yt)
           c = unsafePunBRangeR x y -- guaranteed nonempty
+
+-- | Maps a function over all subintervals of a 'CURange', and renormalizes.
+transCURange :: (Ord a, Ord b) => (a -> b) -> CURange a -> CURange b
+{-# INLINABLE transCURange #-}
+transCURange f = toCURange . transCURangeR f . unCURange
+
+{-| Maps a function, presumed monotonic wrt orderings on @a@ and @b@, over all
+subintervals of a 'CURange'. Does __NOT__ renormalize.
+
+* __PRECONDITION__: @compare x y == compare (f x) (f y)@
+
+* __POSTCONDITION__: output is normalized.
+-}
+unsafeTransCURange :: (Ord a, Ord b) => (a -> b) -> CURange a -> CURange b
+{-# INLINABLE unsafeTransCURange #-}
+unsafeTransCURange f = CURange . transCURangeR f . unCURange
+
+{-| Maps a function, presumed monotonic wrt orderings on @a@ and @b@, over all
+subintervals of an unboxed 'CURange'.
+
+* __PRECONDITION__: @compare x y == compare (f x) (f y)@, assumes input is
+normalized.
+
+* __POSTCONDITION__: output is normalized.
+-}
+transCURangeR :: (a -> b) -> [(Maybe a, Maybe a)] -> [(Maybe b, Maybe b)]
+{-# INLINABLE transCURangeR #-}
+transCURangeR _ [] = []
+transCURangeR f ((l, h):xr) = (fmap f l, fmap f h) : transCURangeR f xr
+
+-- | Maps a function over all subintervals of a 'CBRange', and renormalizes.
+transCBRange :: (Ord a, Bounded b, Ord b) => (a -> b) -> CBRange a -> CBRange b
+{-# INLINABLE transCBRange #-}
+transCBRange f = toCBRange . transCBRangeR f . unCBRange
+
+{-| Maps a function, presumed monotonic wrt orderings on @a@ and @b@, over all
+subintervals of a 'CBRange'. Does __NOT__ renormalize.
+
+* __PRECONDITION__: @compare x y == compare (f x) (f y)@
+
+* __POSTCONDITION__: output is normalized.
+-}
+unsafeTransCBRange :: (Ord a, Ord b) => (a -> b) -> CBRange a -> CBRange b
+{-# INLINABLE unsafeTransCBRange #-}
+unsafeTransCBRange f = CBRange . transCBRangeR f . unCBRange
+
+{-| Maps a function, presumed monotonic wrt orderings on @a@ and @b@, over all
+subintervals of an unboxed 'CBRange'.
+
+* __PRECONDITION__: @compare x y == compare (f x) (f y)@, assumes input is
+normalized.
+
+* __POSTCONDITION__: output is normalized.
+-}
+transCBRangeR :: (a -> b) -> [(a, a)] -> [(b, b)]
+{-# INLINABLE transCBRangeR #-}
+transCBRangeR _ [] = []
+transCBRangeR f ((l, h):xr) = (f l, f h) : transCBRangeR f xr
 

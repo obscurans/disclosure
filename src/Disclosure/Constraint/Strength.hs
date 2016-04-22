@@ -47,6 +47,11 @@ module Disclosure.Constraint.Strength (
 , toCBIntStrR
 , toCIntStrR'
 , toCBIntStrR'
+-- * Collapsing functions
+, colStrengthR
+, colStrengthR'
+, colIntStrR
+, colIntStrR'
 -- * Set algebra reexports from Base.CompoundRange
 , IntersectCUR(..)
 , UnionCUR(..)
@@ -264,79 +269,119 @@ cBStrengthR :: [(Strength, Strength)] -- ^ (lower bound, upper bound) pairs
 {-# INLINABLE cBStrengthR #-}
 cBStrengthR = toCURange . map (\(x, y) -> (Just x, Just y))
 
--- | Constructs and normalizes a 'StrengthRange' with a list of strength values
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- strength values
 toCStrengthR :: Int -- ^ Common fraction denominator
              -> [(Maybe (Int, Int, Modifier), Maybe (Int, Int, Modifier))]
              -- ^ (lower bound, upper bound) pairs of (integer part, fraction
              -- numerator, modifier)
              -> StrengthRange
 {-# INLINABLE toCStrengthR #-}
-toCStrengthR d = toCURange . map (\(x, y) -> (fmap (toS d) x, fmap (toS d) y))
+toCStrengthR d = colStrengthR . toCURange
+               . map (\(x, y) -> (fmap (toS d) x, fmap (toS d) y))
     where toS d = uncurryN $ toStrength d
 
--- | Constructs and normalizes a 'StrengthRange' with a list of finite strength
--- values
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- finite strength values
 toCBStrengthR :: Int -- ^ Common fraction denominator
               -> [((Int, Int, Modifier), (Int, Int, Modifier))]
               -- ^ (lower bound, upper bound) pair of (integer part, fraction
               -- numerator, modifier)
               -> StrengthRange
 {-# INLINABLE toCBStrengthR #-}
-toCBStrengthR d = toCURange . map (\(x, y) -> (toS d x, toS d y))
+toCBStrengthR d = colStrengthR . toCURange . map (\(x, y) -> (toS d x, toS d y))
     where toS d = _' Just $ uncurryN $ toStrength d
 
--- | Constructs and normalizes a 'StrengthRange' with a list of strength values
--- without modifier
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- strength values without modifier
 toCStrengthR' :: Int -- ^ Common fraction denominator
               -> [(Maybe (Int, Int), Maybe (Int, Int))]
               -- ^ (lower bound, upper bound) pairs of (integer part, fraction
               -- numerator)
               -> StrengthRange
 {-# INLINABLE toCStrengthR' #-}
-toCStrengthR' d = toCURange . map (\(x, y) -> (fmap (toS d) x, fmap (toS d) y))
+toCStrengthR' d = colStrengthR' . toCURange
+                . map (\(x, y) -> (fmap (toS d) x, fmap (toS d) y))
     where toS d = uncurry $ toStrength' d
 
--- | Constructs and normalizes a 'StrengthRange' with a list of finite strength
--- values without modifier
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- finite strength values without modifier
 toCBStrengthR' :: Int -- ^ Common fraction denominator
                -> [((Int, Int), (Int, Int))]
                -- ^ (lower bound, upper bound) pairs of (integer part, fraction
                -- numerator)
                -> StrengthRange
 {-# INLINABLE toCBStrengthR' #-}
-toCBStrengthR' d = toCURange . map (\(x, y) -> (toS d x, toS d y))
+toCBStrengthR' d = colStrengthR' . toCURange
+                 . map (\(x, y) -> (toS d x, toS d y))
      where toS d = _' Just $ uncurry $ toStrength' d
 
--- | Constructs and normalizes a 'StrengthRange' with a list of integer strength
--- values
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- integer strength values
 toCIntStrR :: [(Maybe (Int, Modifier), Maybe (Int, Modifier))]
            -- ^ (lower bound, upper bound) pairs
            -> StrengthRange
 {-# INLINABLE toCIntStrR #-}
-toCIntStrR = toCURange . map (\(x, y) -> (fmap toS x, fmap toS y))
+toCIntStrR = colIntStrR . toCURange . map (\(x, y) -> (fmap toS x, fmap toS y))
     where toS = uncurry intStr
 
--- | Constructs and normalizes a 'StrengthRange' with a list of finite integer
--- strength values
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- finite integer strength values
 toCBIntStrR :: [((Int, Modifier), (Int, Modifier))]
             -- ^ (lower bound, upper bound) pairs
             -> StrengthRange
 {-# INLINABLE toCBIntStrR #-}
-toCBIntStrR = toCURange . map (\(x, y) -> (toS x, toS y))
+toCBIntStrR = colIntStrR . toCURange . map (\(x, y) -> (toS x, toS y))
     where toS = _' Just $ uncurry intStr
 
--- | Constructs and normalizes a 'StrengthRange' with a list of integer strength
--- values without modifier
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- integer strength values without modifier
 toCIntStrR' :: [(Maybe Int, Maybe Int)] -- ^ (lower bound, upper bound) pairs
             -> StrengthRange
 {-# INLINABLE toCIntStrR' #-}
-toCIntStrR' = toCURange . map (\(x, y) -> (fmap intStr' x, fmap intStr' y))
+toCIntStrR' = colIntStrR' . toCURange
+            . map (\(x, y) -> (fmap intStr' x, fmap intStr' y))
 
--- | Constructs and normalizes a 'StrengthRange' with a list of finite integer
--- strength values without modifier
+-- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
+-- finite integer strength values without modifier
 toCBIntStrR' :: [(Int, Int)] -- ^ (lower bound, upper bound) pairs
              -> StrengthRange
 {-# INLINABLE toCBIntStrR' #-}
-toCBIntStrR' = toCURange . map (\(x, y) -> (toS x, toS y))
+toCBIntStrR' = colIntStrR' . toCURange . map (\(x, y) -> (toS x, toS y))
     where toS = Just . intStr'
+
+-- | Collapses a 'StrengthRange' treating strength values within 1 fractional
+-- unit and same modifier as adjacent
+colStrengthR :: StrengthRange -> StrengthRange
+{-# INLINABLE colStrengthR #-}
+colStrengthR = colCURange comp
+    where comp (Strength d i n m) (Strength d' i' n' m')
+            = diff $ (i * d + n) * d' - (i' * d' + n') * d
+            where l = d * d'
+                  diff z = not $ (z, m) < (negate l, m') || (z, m) > (l, m')
+
+-- | Collapses a 'StrengthRange' treating strength values within 1 fractional
+-- unit as adjacent regardless of modifiers
+colStrengthR' :: StrengthRange -> StrengthRange
+{-# INLINABLE colStrengthR' #-}
+colStrengthR' = colCURange (\(Strength d i n m) (Strength d' i' n' m') ->
+                            abs ((i * d + n) * d' - (i' * d' + n') * d) <=
+                                min d d')
+
+-- | Collapses a 'StrengthRange' treating strength values within 1 integer and
+-- same modifier as adjacent
+colIntStrR :: StrengthRange -> StrengthRange
+{-# INLINABLE colIntStrR #-}
+colIntStrR = colCURange comp
+    where comp (Strength d i n m) (Strength d' i' n' m')
+            = diff $ (i * d + n) * d' - (i' * d' + n') * d
+            where l = d * d'
+                  diff z = not $ (z, m) < (negate l, m') || (z, m) > (l, m')
+
+-- | Collapses a 'StrengthRange' treating strength values within 1 integer as
+-- adjacent regardless of modifiers
+colIntStrR' :: StrengthRange -> StrengthRange
+{-# INLINABLE colIntStrR' #-}
+colIntStrR' = colCURange (\(Strength d i n m) (Strength d' i' n' m') ->
+                          abs ((i * d + n) * d' - (i' * d' + n') * d) <= d * d')
 
