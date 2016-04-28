@@ -12,14 +12,23 @@ specifically relating to shape, or presence/absence of specific cards.
 module Disclosure.Constraint.Strength (
 -- * Datatypes and constructors
   Modifier(..)
+, StrengthNum(..)
 , Strength
 , toStrength
+, sDenom
+, sNumer
 , StrengthRange
-, cStrengthR
--- ** Convenience Strength constructors
-, toStrength'
-, intStr
-, intStr'
+, toStrengthR
+, sRDenom
+, sRNumer
+-- ** Convenience compound StrengthRange constructors
+, toBStrengthR
+, toStrengthR'
+, toBStrengthR'
+, toIntStrR
+, toBIntStrR
+, toIntStrR'
+, toBIntStrR'
 -- ** Convenience simple StrengthRange constructors
 , strengthEQ
 , strengthEQ'
@@ -33,32 +42,36 @@ module Disclosure.Constraint.Strength (
 , strengthGE'
 , intStrGE
 , intStrGE'
-, toStrengthR
-, toStrengthR'
-, toIntStrR
-, toIntStrR'
--- ** Convenience compound StrengthRange constructors
-, cBStrengthR
-, toCStrengthR
-, toCBStrengthR
-, toCStrengthR'
-, toCBStrengthR'
-, toCIntStrR
-, toCBIntStrR
-, toCIntStrR'
-, toCBIntStrR'
--- * Collapsing functions
+, simpStrengthR
+, simpStrengthR'
+, simpIntStrR
+, simpIntStrR'
+-- * StrengthRange functions
+, expStrengthR
+, compStrengthR
+, scalStrengthR
+, fitStrengthR
+, fitStrengthR'
+, lcmStrengthR
+, lcmStrengthR'
+, gcdStrengthR
 , colStrengthR
 , colStrengthR'
-, colIntStrR
-, colIntStrR'
--- * Set algebra reexports from Base.CompoundRange
-, IntersectCUR(..)
-, UnionCUR(..)
+, colStrengthR''
+-- * Set algebra operations
+, IntersectStrengthR(..)
+, UnionStrengthR(..)
+-- * Internal unboxed functions
+, expStrengthRR
+, compStrengthRR
+, scalStrengthRR
 ) where
 
 import Data.Char
-import Data.Tuple.Curry --tuples
+import Data.Monoid
+import Data.Maybe
+import Data.Tuple.Curry --tuple
+import Data.Tuple.Homogenous --tuples-homogenous-h98
 import Disclosure.Base.Util
 import Disclosure.Base.Range
 import Disclosure.Base.CompoundRange
@@ -76,312 +89,443 @@ instance Show Modifier where
     show (:+) = "⁺"
     show (:++) = "⁺⁺"
 
--- | A mixed fractional strength value, with optional modifier. Fractions are
--- /not/ reduced. Numerator is kept less in magnitude than the denominator, with
--- the same sign as the integer part.
-data Strength = Strength Int Int Int Modifier
+-- | A raw fractional strength value, consisting of a fractional numerator with
+-- unknown denominator and a modifier
+type StrengthNum = (Int, Modifier)
+
+-- | A fractional strength value, as fractional denominator and a 'StrengthNum'.
+-- Generally used only for printing.
+data Strength = Strength {
+    -- | Retrieves the denominator from a 'Strength'
+    sDenom :: Int,
+    -- | Retrieves the numerator\/'Modifier' from a 'Strength'
+    sNumer :: StrengthNum }
 
 -- | Prints (integer part)(numerator in superscript)@&frasl;@(denominator in
 -- subscript)(modifier), with integer xor fraction omitted if zero, @\"0\"@ if
--- numerically zero.
+-- numerically zero. Numerator is kept less in magnitude than the denominator,
+-- with the same sign as the integer part.
 instance Show Strength where
     {-# INLINABLE show #-}
-    show (Strength d i n m)
-        | i == 0 && n /= 0 = show' n ++ "⁄" ++ show_ d ++ show m
-        | n == 0 = show i ++ show m
-        | otherwise = show i ++ show' n ++ "⁄" ++ show_ d ++ show m where
+    show (Strength d (n, m))
+        | i == 0 && f < 0 = "-" ++ show' f ++ "⁄" ++ show_ d ++ show m
+        | i == 0 && f > 0 = show' f ++ "⁄" ++ show_ d ++ show m
+        | f == 0 = show i ++ show m
+        | otherwise = show i ++ show' f ++ "⁄" ++ show_ d ++ show m where
+            (i, f) = quotRem n d
             show' = map (("⁰¹²³⁴⁵⁶⁷⁸⁹" !!) . (subtract $ ord '0') . ord) . show
                   . abs
             show_ = map (("₀₁₂₃₄₅₆₇₈₉" !!) . (subtract $ ord '0') . ord) . show
 
--- | Mixed fractions compared numerically, lexicographically 'Modifier'
+-- | Fractions compared numerically, lexicographically 'Modifier'
 instance Eq Strength where
-    (Strength d i n m) == (Strength d' i' n' m') =
-        (i * d + n) * d' == (i' * d' + n') * d && m == m'
+    {-# INLINABLE (==) #-}
+    (Strength d (n, m)) == (Strength d' (n', m')) =
+        n * d' == n' * d && m == m'
 
--- | Mixed fractions compared numerically, lexicographically 'Modifier'
+-- | Fractions compared numerically, lexicographically 'Modifier'
 instance Ord Strength where
-    compare (Strength d i n m) (Strength d' i' n' m')
-        = compare ((i * d + n) * d', m) ((i' * d' + n') * d, m')
+    {-# INLINABLE compare #-}
+    compare (Strength d (n, m)) (Strength d' (n', m'))
+        = compare (n * d', m) (n' * d, m')
 
 -- | Constructs and normalizes a 'Strength'
 toStrength :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
-           -> Int -- ^ Fraction numerator
-           -> Modifier -> Strength
+           -> StrengthNum -- ^ Fraction numerator and 'Modifier'
+           -> Strength
 {-# INLINABLE toStrength #-}
-toStrength d i n
-    | n /= 0 && d == 0 = error "zero denominator toFracStr"
-    | n == 0 && d == 0 = Strength 1 i 0
-    | otherwise = Strength (abs d) i' n'
-    where (i', n') = quotRem ((i * d + n) * signum d) (abs d)
+toStrength d s@(n, m)
+    | d == 0 = error "zero denominator toStrength"
+    | d < 0 = Strength (abs d) (negate n, m)
+    | otherwise = Strength d s
 
--- | An unbounded compound range of 'Strength'. Instances: 'Bounded', 'Eq',
--- 'Show', 'Monoid'.
-type StrengthRange = CURange Strength
+-- | An unbounded compound range ('CURange') of 'StrengthNum' with a common
+-- denominator
+data StrengthRange = StrengthRange {
+    -- | Retrieves the common denominator of the 'StrengthRange'
+    sRDenom :: Int,
+    -- | Retrieves the numerator\/'Modifier' range of the 'StrengthRange'
+    sRNumer :: CURange StrengthNum }
 
--- | Constructs a 'Strength' with no modifier
-toStrength' :: Int -- ^ Fraction denominatior
-            -> Int -- ^ Integer part
-            -> Int -- ^ Fraction numerator
-            -> Strength
-{-# INLINABLE toStrength' #-}
-toStrength' d i = flip (Strength d i) (:=)
+instance Show StrengthRange where
+    {-# INLINABLE show #-}
+    show StrengthRange { sRDenom = d, sRNumer = n } =
+        show $ unsafeTransCURange (toStrength d) n
 
--- | Constructs an integral 'Strength'
-intStr :: Int -> Modifier -> Strength
-{-# INLINABLE intStr #-}
-intStr = flip (Strength 1) 0
+-- | Constructs, validates, and normalizes a 'StrengthRange'
+toStrengthR :: Int -- ^ Common fraction denominator
+            -> [(Maybe StrengthNum, Maybe StrengthNum)]
+            -- ^ (lower bound, upper bound) pairs of numerators with 'Modifier'
+            -> StrengthRange
+{-# INLINABLE toStrengthR #-}
+toStrengthR d
+    | d <= 0 = error "Nonpositive denominator toStrengthR"
+    | otherwise = StrengthRange d . toCURange
 
--- | Constructs an integral 'Strength' with no modifier
-intStr' :: Int -> Strength
-{-# INLINABLE intStr' #-}
-intStr' = flip intStr (:=)
+-- | Constructs, validates, and normalizes a finite 'StrengthRange'
+toBStrengthR :: Int -- ^ Common fraction denominator
+             -> [(StrengthNum, StrengthNum)]
+             -- ^ (lower bound, upper bound) pairs of numerators with 'Modifier'
+             -> StrengthRange
+{-# INLINABLE toBStrengthR #-}
+toBStrengthR d
+    | d <= 0 = error "Nonpositive denominator toBStrengthR"
+    | otherwise = StrengthRange d . toCURange'
 
--- | Constructs a 'StrengthRange' for that exact strength value
+-- | Constructs, validates, and normalizes a 'StrengthRange' without 'Modifier's
+toStrengthR' :: Int -- ^ Common fraction denominator
+             -> [(Maybe Int, Maybe Int)]
+             -- ^ (lower bound, upper bound) pairs of numerators
+             -> StrengthRange
+{-# INLINABLE toStrengthR' #-}
+toStrengthR' d
+    | d <= 0 = error "Nonpositive denominator toStrengthR'"
+    | otherwise = StrengthRange d . toCURange . map (\(x, y) -> (s x, s y))
+    where s = fmap (flip (,) (:=))
+
+-- | Constructs, validates, and normalizes a finite 'StrengthRange' without
+-- 'Modifier's
+toBStrengthR' :: Int -- ^ Common fraction denominator
+             -> [(Int, Int)] -- ^ (lower bound, upper bound) pairs of numerators
+             -> StrengthRange
+{-# INLINABLE toBStrengthR' #-}
+toBStrengthR' d
+    | d <= 0 = error "Nonpositive denominator toStrengthR'"
+    | otherwise = StrengthRange d . toCURange . map (\(x, y) -> (s x, s y))
+    where s = Just . flip (,) (:=)
+
+-- | Constructs, validates, and normalizes an integral 'StrengthRange'
+toIntStrR :: [(Maybe StrengthNum, Maybe StrengthNum)]
+          -- ^ (lower bound, upper bound) pairs of strengths with 'Modifier'
+          -> StrengthRange
+{-# INLINABLE toIntStrR #-}
+toIntStrR = toStrengthR 1
+
+-- | Constructs, validates, and normalizes a finite integral 'StrengthRange'
+toBIntStrR :: [(StrengthNum, StrengthNum)]
+          -- ^ (lower bound, upper bound) pairs of strengths with 'Modifier'
+          -> StrengthRange
+{-# INLINABLE toBIntStrR #-}
+toBIntStrR = toBStrengthR 1
+
+-- | Constructs, validates, and normalizes an integral 'StrengthRange' without
+-- 'Modifier's
+toIntStrR' :: [(Maybe Int, Maybe Int)]
+          -- ^ (lower bound, upper bound) pairs of strengths
+          -> StrengthRange
+{-# INLINABLE toIntStrR' #-}
+toIntStrR' = toStrengthR' 1
+
+-- | Constructs, validates, and normalizes a finite integral 'StrengthRange'
+-- without 'Modifier's
+toBIntStrR' :: [(Int, Int)] -- ^ (lower bound, upper bound) pairs of strengths
+          -> StrengthRange
+{-# INLINABLE toBIntStrR' #-}
+toBIntStrR' = toBStrengthR' 1
+
+instance Bounded StrengthRange where
+    {-# INLINABLE minBound #-}
+    minBound = toBIntStrR' []
+    {-# INLINABLE maxBound #-}
+    maxBound = toIntStrR' [(Nothing, Nothing)]
+
+{-| Scales up the denominator of a 'StrengthRange' by a positive factor. All
+intervals are unchanged numerically.
+
+prop> compStrengthR i . expStrengthR i == id
+-}
+expStrengthR :: Int -> StrengthRange -> StrengthRange
+{-# INLINABLE expStrengthR #-}
+expStrengthR s o@(StrengthRange d r)
+    | s <= 0 = error "Nonpositive scaling factor expStrengthR"
+    | s == 1 = o
+    | otherwise = StrengthRange (d * s) $ expStrengthRR s r
+
+{-| Scales up the denominator of an unboxed 'StrengthRange' by a positive
+factor. All intervals are unchanged numerically.
+
+prop> compStrengthRR i . expStrengthRR i == id
+-}
+expStrengthRR :: Int -> CURange StrengthNum -> CURange StrengthNum
+{-# INLINABLE expStrengthRR #-}
+expStrengthRR s
+    | s <= 0 = error "Nonpositive scaling factor expStrengthRR"
+    | s == 1 = id
+    | otherwise = unsafeTransCURange (\(n, m) -> (n * s, m))
+
+{-| Scales down the denominator of a 'StrengthRange' by a positive factor, which
+must divide the original denominator. All divisions of numerators are rounded
+down, and the resulting intervals are coalesced. Will cause roundoff losses
+unless every numerator is divisible by the factor.
+
+prop> compStrengthR i . expStrengthR i == id
+-}
+compStrengthR :: Int -> StrengthRange -> StrengthRange
+{-# INLINABLE compStrengthR #-}
+compStrengthR s o@(StrengthRange d r)
+    | s <= 0 = error "Nonpositive scaling factor compStrengthR"
+    | s == 1 = o
+    | mod d s /= 0 = error $ "Scaling factor does not divide original " ++
+                             "denominator compStrengthRange"
+    | otherwise = StrengthRange (div d s) $ compStrengthRR s r
+
+{-| Scales down the denominator of an unboxed 'StrengthRange' by a positive
+factor, which must divide the original denominator. All divisions of numerators
+are rounded down, and the resulting intervals are coalesced. Will cause roundoff
+losses unless every numerator is divisible by the factor.
+
+prop> compStrengthR i . expStrengthR i == id
+-}
+compStrengthRR :: Int -> CURange StrengthNum -> CURange StrengthNum
+{-# INLINABLE compStrengthRR #-}
+compStrengthRR s
+    | s <= 0 = error "Nonpositive scaling factor compStrengthRR"
+    | s == 1 = id
+    | otherwise = colCURange (>=) . unsafeTransCURange (\(n, m) -> (div n s, m))
+
+{-| Scales the denominator of a 'StrengthRange' to a given number, by first
+scaling up to the LCM of the number and the original denominator, then down to
+the number. When scaling down, all divisions of numerators are rounded down, and
+the resulting intervals are coalesced. Will cause roundoff losses unless every
+numerator times number divided by original denominator results in an integer.
+-}
+scalStrengthR :: Int -> StrengthRange -> StrengthRange
+{-# INLINABLE scalStrengthR #-}
+scalStrengthR s (StrengthRange d r) = StrengthRange s $ scalStrengthRR s d r
+
+{-| Scales the denominator of an unboxed 'StrengthRange' to a given number, by
+first scaling up to the LCM of the number and the original denominator, then
+down to the number. When scaling down, all divisions of numerators are rounded
+down, and the resulting intervals are coalesced. Will cause roundoff losses
+unless every numerator times number divided by original denominator results in
+an integer.
+-}
+scalStrengthRR :: Int -> Int -> CURange StrengthNum -> CURange StrengthNum
+{-# INLINABLE scalStrengthRR #-}
+scalStrengthRR s d
+    | s <= 0 = error "Nonpositive denominator scalStrengthRR"
+    | s == d = id
+    | c == 1 = expStrengthRR e
+    | e == 1 = compStrengthRR c
+    | otherwise = colCURange (>=)
+                . unsafeTransCURange (\(n, m) -> (div (n * e) c, m))
+    where l = lcm s d; e = div l d; c = div l s
+
+-- | Scales the denominators of the given 'StrengthRange's to their LCM. All
+-- intervals are unchanged numerically.
+fitStrengthR :: StrengthRange -> StrengthRange -> (StrengthRange, StrengthRange)
+{-# INLINABLE fitStrengthR #-}
+fitStrengthR x@(StrengthRange d _) y@(StrengthRange d' _)
+    = (lcmStrengthR d' x, lcmStrengthR d y)
+
+-- | Scales the denominator of a 'StrengthRange' to the LCM of the given number
+-- and its own denominator. All intervals are unchanged numerically.
+lcmStrengthR :: Int -> StrengthRange -> StrengthRange
+{-# INLINABLE lcmStrengthR #-}
+lcmStrengthR n x@(StrengthRange d _) = expStrengthR (div (lcm n d) d) x
+
+-- | Scales the denominators of the given 'StrengthRange's to their LCM. All
+-- intervals are unchanged numerically. Returns the unboxed 'CURange's without
+-- denominator.
+fitStrengthR' :: StrengthRange -> StrengthRange ->
+                 (CURange StrengthNum, CURange StrengthNum)
+{-# INLINABLE fitStrengthR' #-}
+fitStrengthR' x@(StrengthRange d _) y@(StrengthRange d' _)
+    = (lcmStrengthR' d' x, lcmStrengthR' d y)
+
+-- | Scales the denominator of a 'StrengthRange' to the LCM of the given number
+-- and its own denominator. All intervals are unchanged numerically. Returns
+-- the unboxed 'CURange' without denominator.
+lcmStrengthR' :: Int -> StrengthRange -> CURange StrengthNum
+{-# INLINABLE lcmStrengthR' #-}
+lcmStrengthR' d' (StrengthRange d r) = expStrengthRR (div (lcm d' d) d) r
+
+instance Eq StrengthRange where
+    {-# INLINABLE (==) #-}
+    (==) = _' (uncurry (==)) . fitStrengthR'
+
+-- | The commutative operation intersects the two ranges. Identity is the
+-- universal set.
+instance Monoid StrengthRange where
+    {-# INLINABLE mempty #-}
+    mempty = StrengthRange 1 mempty
+    {-# INLINABLE mappend #-}
+    mappend x@(StrengthRange d _) y@(StrengthRange d' _) = StrengthRange
+        (lcm d d') $ uncurry mappend $ fitStrengthR' x y
+
+-- | Scales down the denominator of a 'StrengthRange' as much as possible
+-- without affecting the numerical value of any interval, i.e. by the GCD of
+-- all numerators and the denominator.
+gcdStrengthR :: StrengthRange -> StrengthRange
+{-# INLINABLE gcdStrengthR #-}
+gcdStrengthR x@(StrengthRange d r) = compStrengthR (foldr gcd d ns) x
+    where ns = map fst $ catMaybes $ uncurry (++) $ unzip $ unCURange r
+
+-- | Collapses a 'StrengthRange' treating strength values within one modifier
+-- unit (including @x@ fraction, max modifier and @x+1@ fraction, min modifier)
+-- as adjacent.
+colStrengthR :: StrengthRange -> StrengthRange
+{-# INLINABLE colStrengthR #-}
+colStrengthR (StrengthRange d r) = StrengthRange d $ colCURange comp r
+          -- can assume x < y
+    where comp (n, m) (n', m') = (n == n' && (fromEnum m') - (fromEnum m) <= 1)
+            || ((n == n' - 1) && (m == maxBound) && (m' == minBound))
+
+-- | Collapses a 'StrengthRange' treating strength values within 1 fractional
+-- unit and same modifier as adjacent.
+colStrengthR' :: StrengthRange -> StrengthRange
+{-# INLINABLE colStrengthR' #-}
+colStrengthR' (StrengthRange d r) = StrengthRange d $ colCURange comp r
+          -- can assume x < y
+    where comp (n, m) (n', m') = (n == n') || ((n == n' - 1) && (m >= m'))
+
+-- | Collapses a 'StrengthRange' treating strength values within 1 fractional
+-- unit as adjacent regardless of modifiers.
+colStrengthR'' :: StrengthRange -> StrengthRange
+{-# INLINABLE colStrengthR'' #-}
+colStrengthR'' (StrengthRange d r) = StrengthRange d $ colCURange comp r
+           -- can assume x < y
+     where comp (n, m) (n', m') = (n == n') || (n == n' - 1)
+
+-- | Constructs a 'StrengthRange' exactly equal to the strength value with
+-- 'Modifier'
 strengthEQ :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
            -> Int -- ^ Fraction numerator
            -> Modifier -> StrengthRange
 {-# INLINABLE strengthEQ #-}
-strengthEQ = _''' (singURange . uRangeEQ) . Strength
+strengthEQ d = _' (StrengthRange d . singURange . uRangeEQ) . (,)
 
--- | Constructs a 'StrengthRange' for that exact strength value with no modifier
+-- | Constructs a 'StrengthRange' exactly equal to the strength value without
+-- 'Modifier'
 strengthEQ' :: Int -- ^ Fraction denominator
-            -> Int -- ^ Integer part
             -> Int -- ^ Fraction numerator
             -> StrengthRange
 {-# INLINABLE strengthEQ' #-}
-strengthEQ' = _'' (singURange . uRangeEQ) . toStrength'
+strengthEQ' d = flip (strengthEQ d) (:=)
 
--- | Constructs a 'StrengthRange' for that exact integral strength value
+-- | Constructs a 'StrengthRange' exactly equal to the integral strength value
+-- with 'Modifier'
 intStrEQ :: Int -> Modifier -> StrengthRange
 {-# INLINABLE intStrEQ #-}
-intStrEQ = _' (singURange . uRangeEQ) . intStr
+intStrEQ = strengthEQ 1
 
--- | Constructs a 'StrengthRange' for that exact integral strength value with no
--- modifier
+-- | Constructs a 'StrengthRange' exactly equal to the integral strength value
+-- without 'Modifier'
 intStrEQ' :: Int -> StrengthRange
 {-# INLINABLE intStrEQ' #-}
-intStrEQ' = singURange . uRangeEQ . intStr'
+intStrEQ' = flip intStrEQ (:=)
 
--- | Constructs a 'StrengthRange' for ≤ that strength value
+-- | Constructs a 'StrengthRange' for ≤ the strength value with 'Modifier'
 strengthLE :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
            -> Int -- ^ Fraction numerator
            -> Modifier -> StrengthRange
 {-# INLINABLE strengthLE #-}
-strengthLE = _''' (singURange . uRangeLE) . Strength
+strengthLE d = _' (StrengthRange d . singURange . uRangeLE) . (,)
 
--- | Constructs a 'StrengthRange' for ≤ that strength value with no modifier
+-- | Constructs a 'StrengthRange' for ≤ the strength value without 'Modifier'
 strengthLE' :: Int -- ^ Fraction denominator
-            -> Int -- ^ Integer part
             -> Int -- ^ Fraction numerator
             -> StrengthRange
 {-# INLINABLE strengthLE' #-}
-strengthLE' = _'' (singURange . uRangeLE) . toStrength'
+strengthLE' d = flip (strengthLE d) (:=)
 
--- | Constructs a 'StrengthRange' for ≤ that integral strength value
+-- | Constructs a 'StrengthRange' for ≤ the integral strength value with
+-- 'Modifier'
 intStrLE :: Int -> Modifier -> StrengthRange
 {-# INLINABLE intStrLE #-}
-intStrLE = _' (singURange . uRangeLE) . intStr
+intStrLE = strengthLE 1
 
--- | Constructs a 'StrengthRange' for ≤ that integral strength value with no
--- modifier
+-- | Constructs a 'StrengthRange' for ≤ the integral strength value without
+-- 'Modifier'
 intStrLE' :: Int -> StrengthRange
 {-# INLINABLE intStrLE' #-}
-intStrLE' = singURange . uRangeLE . intStr'
+intStrLE' = flip intStrLE (:=)
 
--- | Constructs a 'StrengthRange' for ≥ that strength value
+-- | Constructs a 'StrengthRange' for ≥ the strength value with 'Modifier'
 strengthGE :: Int -- ^ Fraction denominator
-           -> Int -- ^ Integer part
            -> Int -- ^ Fraction numerator
            -> Modifier -> StrengthRange
 {-# INLINABLE strengthGE #-}
-strengthGE = _''' (singURange . uRangeGE) . Strength
+strengthGE d = _' (StrengthRange d . singURange . uRangeGE) . (,)
 
--- | Constructs a 'StrengthRange' for ≥ that strength value with no modifier
+-- | Constructs a 'StrengthRange' for ≥ the strength value without 'Modifier'
 strengthGE' :: Int -- ^ Fraction denominator
-            -> Int -- ^ Integer part
             -> Int -- ^ Fraction numerator
             -> StrengthRange
 {-# INLINABLE strengthGE' #-}
-strengthGE' = _'' (singURange . uRangeGE) . toStrength'
+strengthGE' d = flip (strengthGE d) (:=)
 
--- | Constructs a 'StrengthRange' for ≥ that integral strength value
+-- | Constructs a 'StrengthRange' for ≥ the integral strength value with
+-- 'Modifier'
 intStrGE :: Int -> Modifier -> StrengthRange
 {-# INLINABLE intStrGE #-}
-intStrGE = _' (singURange . uRangeGE) . intStr
+intStrGE = strengthGE 1
 
--- | Constructs a 'StrengthRange' for ≥ that integral strength value with no
--- modifier
+-- | Constructs a 'StrengthRange' for ≥ the integral strength value without
+-- 'Modifier'
 intStrGE' :: Int -> StrengthRange
 {-# INLINABLE intStrGE' #-}
-intStrGE' = singURange . uRangeGE . intStr'
+intStrGE' = flip intStrGE (:=)
 
--- | Constructs and validates a 'StrengthRange' with strength values
-toStrengthR :: Int -- ^ Common fraction denominator
-            -> Int -- ^ Integer part, lower bound
-            -> Int -- ^ Fraction numerator, lower bound
-            -> Modifier
-            -> Int -- ^ Integer part, upper bound
-            -> Int -- ^ Fraction numerator, upper bound
-            -> Modifier -> StrengthRange
-{-# INLINABLE toStrengthR #-}
-toStrengthR d i n m = _'' (singURange . toURange' (Strength d i n m))
-                    . Strength d
-
--- | Constructs and validates a 'StrengthRange' with strength values without
--- modifier
-toStrengthR' :: Int -- ^ Common fraction denominator
-             -> Int -- ^ Integer part, lower bound
-             -> Int -- ^ Fraction numerator, lower bound
-             -> Int -- ^ Integer part, upper bound
-             -> Int -- ^ Fraction numerator, upper bound
-             -> StrengthRange
-{-# INLINABLE toStrengthR' #-}
-toStrengthR' d i n = _' (singURange . toURange' (toStrength' d i n))
-                   . toStrength' d
-
--- | Constructs and validates a 'StrengthRange' with integral strength values
-toIntStrR :: Int -> Modifier -> Int -> Modifier -> StrengthRange
-{-# INLINABLE toIntStrR #-}
-toIntStrR i m = _' (singURange . toURange' (intStr i m)) . intStr
-
--- | Constructs and validates a 'StrengthRange' with integral strength values
--- without modifiers
-toIntStrR' :: Int -> Int -> StrengthRange
-{-# INLINABLE toIntStrR' #-}
-toIntStrR' = liftN2 intStr' singURange toURange'
-
--- | Constructs and normalizes a 'StrengthRange' with a list of strength
--- intervals
-cStrengthR :: [(Maybe Strength, Maybe Strength)]
-           -- ^ (lower bound, upper bound) pairs
-           -> StrengthRange
-{-# INLINABLE cStrengthR #-}
-cStrengthR = toCURange
-
--- | Constructs and normalizes a 'StrengthRange' with a list of finite strength
--- intervals
-cBStrengthR :: [(Strength, Strength)] -- ^ (lower bound, upper bound) pairs
-            -> StrengthRange
-{-# INLINABLE cBStrengthR #-}
-cBStrengthR = toCURange . map (\(x, y) -> (Just x, Just y))
-
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- strength values
-toCStrengthR :: Int -- ^ Common fraction denominator
-             -> [(Maybe (Int, Int, Modifier), Maybe (Int, Int, Modifier))]
-             -- ^ (lower bound, upper bound) pairs of (integer part, fraction
-             -- numerator, modifier)
-             -> StrengthRange
-{-# INLINABLE toCStrengthR #-}
-toCStrengthR d = colStrengthR . toCURange
-               . map (\(x, y) -> (fmap (toS d) x, fmap (toS d) y))
-    where toS d = uncurryN $ toStrength d
-
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- finite strength values
-toCBStrengthR :: Int -- ^ Common fraction denominator
-              -> [((Int, Int, Modifier), (Int, Int, Modifier))]
-              -- ^ (lower bound, upper bound) pair of (integer part, fraction
-              -- numerator, modifier)
+-- | Constructs and validates a 'StrengthRange' for between the two strength
+-- values and modifiers
+simpStrengthR :: Int -- ^ Common fraction denominator
+              -> Int -- ^ Lower bound numerator
+              -> Modifier -- ^ Lower bound modifier
+              -> Int -- ^ Upper bound numerator
+              -> Modifier -- ^ Upper bound modifier
               -> StrengthRange
-{-# INLINABLE toCBStrengthR #-}
-toCBStrengthR d = colStrengthR . toCURange . map (\(x, y) -> (toS d x, toS d y))
-    where toS d = _' Just $ uncurryN $ toStrength d
+{-# INLINABLE simpStrengthR #-}
+simpStrengthR d n m n' m' = StrengthRange d $ singURange $
+                            toURange' (n, m) (n', m')
 
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- strength values without modifier
-toCStrengthR' :: Int -- ^ Common fraction denominator
-              -> [(Maybe (Int, Int), Maybe (Int, Int))]
-              -- ^ (lower bound, upper bound) pairs of (integer part, fraction
-              -- numerator)
-              -> StrengthRange
-{-# INLINABLE toCStrengthR' #-}
-toCStrengthR' d = colStrengthR' . toCURange
-                . map (\(x, y) -> (fmap (toS d) x, fmap (toS d) y))
-    where toS d = uncurry $ toStrength' d
-
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- finite strength values without modifier
-toCBStrengthR' :: Int -- ^ Common fraction denominator
-               -> [((Int, Int), (Int, Int))]
-               -- ^ (lower bound, upper bound) pairs of (integer part, fraction
-               -- numerator)
+-- | Constructs and validates a 'StrengthRange' for between the two strength
+-- values without modifiers
+simpStrengthR' :: Int -- ^ Common fraction denominator
+               -> Int -- ^ Lower bound numerator
+               -> Int -- ^ Upper bound numerator
                -> StrengthRange
-{-# INLINABLE toCBStrengthR' #-}
-toCBStrengthR' d = colStrengthR' . toCURange
-                 . map (\(x, y) -> (toS d x, toS d y))
-     where toS d = _' Just $ uncurry $ toStrength' d
+{-# INLINABLE simpStrengthR' #-}
+simpStrengthR' d n n' = simpStrengthR d n (:=) n' (:=)
 
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- integer strength values
-toCIntStrR :: [(Maybe (Int, Modifier), Maybe (Int, Modifier))]
-           -- ^ (lower bound, upper bound) pairs
-           -> StrengthRange
-{-# INLINABLE toCIntStrR #-}
-toCIntStrR = colIntStrR . toCURange . map (\(x, y) -> (fmap toS x, fmap toS y))
-    where toS = uncurry intStr
+-- | Constructs and validates a 'StrengthRange' for between the two integral
+-- strength values and modifiers
+simpIntStrR :: Int -> Modifier -> Int -> Modifier -> StrengthRange
+{-# INLINABLE simpIntStrR #-}
+simpIntStrR = simpStrengthR 1
 
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- finite integer strength values
-toCBIntStrR :: [((Int, Modifier), (Int, Modifier))]
-            -- ^ (lower bound, upper bound) pairs
-            -> StrengthRange
-{-# INLINABLE toCBIntStrR #-}
-toCBIntStrR = colIntStrR . toCURange . map (\(x, y) -> (toS x, toS y))
-    where toS = _' Just $ uncurry intStr
+-- | Constructs and validates a 'StrengthRange' for between the two integral
+-- strength values without modifiers
+simpIntStrR' :: Int -> Int -> StrengthRange
+{-# INLINABLE simpIntStrR' #-}
+simpIntStrR' = simpStrengthR' 1
 
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- integer strength values without modifier
-toCIntStrR' :: [(Maybe Int, Maybe Int)] -- ^ (lower bound, upper bound) pairs
-            -> StrengthRange
-{-# INLINABLE toCIntStrR' #-}
-toCIntStrR' = colIntStrR' . toCURange
-            . map (\(x, y) -> (fmap intStr' x, fmap intStr' y))
+-- | Newtype wrapper on a 'StrengthRange' whose 'Ord'ering is subset inclusion,
+-- for testing of inclusion. Note that 'Eq' is inherited directly and __IS
+-- INCONSISTENT__ with 'Ord' on incomparable ranges.
+newtype IntersectStrengthR = IntersectStrengthR {
+    unIntersectStrengthR :: StrengthRange } deriving Eq
 
--- | Constructs, normalizes, and collapses a 'StrengthRange' with a list of
--- finite integer strength values without modifier
-toCBIntStrR' :: [(Int, Int)] -- ^ (lower bound, upper bound) pairs
-             -> StrengthRange
-{-# INLINABLE toCBIntStrR' #-}
-toCBIntStrR' = colIntStrR' . toCURange . map (\(x, y) -> (toS x, toS y))
-    where toS = Just . intStr'
+instance Ord IntersectStrengthR where
+    {-# INLINABLE compare #-}
+    compare (IntersectStrengthR x) (IntersectStrengthR y)
+        | x == y = EQ
+        | intersection == x = LT
+        | intersection == y = GT
+        | otherwise = EQ
+        where intersection = mappend x y
 
--- | Collapses a 'StrengthRange' treating strength values within 1 fractional
--- unit and same modifier as adjacent
-colStrengthR :: StrengthRange -> StrengthRange
-{-# INLINABLE colStrengthR #-}
-colStrengthR = colCURange comp
-    where comp (Strength d i n m) (Strength d' i' n' m')
-            = diff $ (i * d + n) * d' - (i' * d' + n') * d
-            where l = d * d'
-                  diff z = not $ (z, m) < (negate l, m') || (z, m) > (l, m')
+-- | Newtype wrapper for a 'StrengthRange' whose commutative 'Monoid' is set
+-- union, with identity being the empty set.
+newtype UnionStrengthR = UnionStrengthR { unUnionStrengthR :: StrengthRange }
+    deriving Eq
 
--- | Collapses a 'StrengthRange' treating strength values within 1 fractional
--- unit as adjacent regardless of modifiers
-colStrengthR' :: StrengthRange -> StrengthRange
-{-# INLINABLE colStrengthR' #-}
-colStrengthR' = colCURange (\(Strength d i n m) (Strength d' i' n' m') ->
-                            abs ((i * d + n) * d' - (i' * d' + n') * d) <=
-                                min d d')
-
--- | Collapses a 'StrengthRange' treating strength values within 1 integer and
--- same modifier as adjacent
-colIntStrR :: StrengthRange -> StrengthRange
-{-# INLINABLE colIntStrR #-}
-colIntStrR = colCURange comp
-    where comp (Strength d i n m) (Strength d' i' n' m')
-            = diff $ (i * d + n) * d' - (i' * d' + n') * d
-            where l = d * d'
-                  diff z = not $ (z, m) < (negate l, m') || (z, m) > (l, m')
-
--- | Collapses a 'StrengthRange' treating strength values within 1 integer as
--- adjacent regardless of modifiers
-colIntStrR' :: StrengthRange -> StrengthRange
-{-# INLINABLE colIntStrR' #-}
-colIntStrR' = colCURange (\(Strength d i n m) (Strength d' i' n' m') ->
-                          abs ((i * d + n) * d' - (i' * d' + n') * d) <= d * d')
+instance Monoid UnionStrengthR where
+    {-# INLINABLE mempty #-}
+    mempty = UnionStrengthR minBound
+    {-# INLINABLE mappend #-}
+    mappend (UnionStrengthR x@(StrengthRange d _))
+        (UnionStrengthR y@(StrengthRange d' _)) = UnionStrengthR $ StrengthRange
+            (lcm d d') $ unUnionCUR $ uncurry mappend
+                       $ untuple2 $ fmap UnionCUR $ Tuple2 $ fitStrengthR' x y
 

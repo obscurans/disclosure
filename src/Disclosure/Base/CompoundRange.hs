@@ -364,7 +364,7 @@ newtype IntersectCUR a = IntersectCUR { unIntersectCUR :: CURange a }
 
 -- | True subset inclusion ordering, where 'EQ' denotes true equality or
 -- incomparability
-instance (Bounded a, Ord a) => Ord (IntersectCUR a) where
+instance Ord a => Ord (IntersectCUR a) where
     {-# INLINABLE compare #-}
     compare (IntersectCUR x) (IntersectCUR y)
         | x == y = EQ

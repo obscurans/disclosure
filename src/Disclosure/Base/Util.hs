@@ -10,7 +10,7 @@ Internal utility functions
 -}
 module Disclosure.Base.Util where
 
-import Data.Tuple.Curry --tuples
+import Data.Tuple.Curry --tuple
 import Data.Tuple.Homogenous --tuples-homogenous-h98
 import Control.Applicative
 

@@ -61,8 +61,8 @@ module Disclosure.Constraint.Shape (
 
 import Data.List
 import Data.Monoid
-import Data.Tuple.Curry --tuples
-import Data.Tuple.Sequence --tuples
+import Data.Tuple.Curry --tuple
+import Data.Tuple.Sequence --tuple
 import Data.Tuple.Homogenous --tuples-homogenous-h98
 import Control.Applicative
 import Control.Monad
