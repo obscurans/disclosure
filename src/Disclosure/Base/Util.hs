@@ -10,9 +10,19 @@ Internal utility functions
 -}
 module Disclosure.Base.Util where
 
-import Data.Tuple.Curry --tuple
-import Data.Tuple.Homogenous --tuples-homogenous-h98
+import Data.Monoid
+import Data.Tuple.Curry
+import Data.Tuple.Homogenous
 import Control.Applicative
+import Control.Monad
+
+-- | A possibly failing 'Monoid', where 'mappend'' returns 'Maybe' @a@ instead
+class Monoid' a where
+    {-# MINIMAL mempty', mappend' #-}
+    mempty' :: a
+    mappend' :: a -> a -> Maybe a
+    mconcat' :: [a] -> Maybe a
+    mconcat' = foldr (_' (=<<) mappend') $ Just mempty'
 
 -- | Modifies a composing function to \"wait for one argument\"
 _' :: (b -> c) -> (a -> b) -> a -> c
@@ -69,6 +79,12 @@ instance Ord a => Ord (NothingLast a) where
     compare (NLast _) (NLast Nothing) = LT
     compare (NLast x) (NLast y) = compare x y
 
+-- | Compares two elements, with first 'Nothing' being -∞, second 'Nothing'
+-- being +∞
+compareMaybeR :: Ord a => Maybe a -> Maybe a -> Ordering
+{-# INLINABLE compareMaybeR #-}
+compareMaybeR = _' (maybe LT id) . liftM2 compare
+
 -- | Lifts a binary function into 'Maybe' in an absorptive way: if one argument
 -- is 'Nothing' it returns the other, else applies the function
 liftAbsorb2 :: (a -> a -> a) -> Maybe a -> Maybe a -> Maybe a
@@ -84,6 +100,28 @@ liftAbsorbM2 :: (a -> a -> Maybe a) -> Maybe a -> Maybe a -> Maybe a
 liftAbsorbM2 _ Nothing y = y
 liftAbsorbM2 _ x@(Just _) Nothing = x
 liftAbsorbM2 f (Just x) (Just y) = f x y
+
+-- | Compares using the 'Monoid' operation, which is presumed to be a meet
+-- lattice operation.
+compareMeet :: (Eq a, Monoid a) => a -> a -> Ordering
+{-# INLINABLE compareMeet #-}
+compareMeet x y
+    | x == y = EQ
+    | intersect == x = LT
+    | intersect == y = GT
+    | otherwise = EQ
+    where intersect = mappend x y
+
+-- | Compares using the 'Monoid'' operation, which is presumed to be a meet
+-- lattice operation, which failure represents a result of lattice bottom.
+compareMeet' :: (Eq a, Monoid' a) => a -> a -> Ordering
+{-# INLINABLE compareMeet' #-}
+compareMeet' x y
+    | x == y = EQ
+    | intersect == Just x = LT
+    | intersect == Just y = GT
+    | otherwise = EQ
+    where intersect = mappend' x y
 
 -- | Utility to simplify 'readsPrec' returns
 readSucc :: b -> a -> [(a, b)]

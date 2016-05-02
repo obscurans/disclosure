@@ -3,5 +3,5 @@
 *.dump*
 *.prof
 *.hp
-doc/
+dist/
 
