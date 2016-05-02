@@ -1,13 +1,25 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, GeneralizedNewtypeDeriving #-}
-module Disclosure.TestUtil where
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, GeneralizedNewtypeDeriving #-}
+module Disclosure.Test.Util
+( module Disclosure.Test.Util
+, module Test.Tasty
+, module Test.Tasty.HUnit
+) where
 
 import Data.Monoid
 import Control.Applicative
 import Control.Monad
 import Test.SmallCheck.Series
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.SmallCheck
+import qualified Test.Tasty.QuickCheck as Q
 import Disclosure.Base.Util (Monoid'(..))
+
+sTestProperty :: Testable IO a => TestName -> a -> TestTree
+sTestProperty = testProperty
+
+qTestProperty :: Q.Testable a => TestName -> a -> TestTree
+qTestProperty = Q.testProperty
 
 adjSCDepth :: SmallCheckDepth -> TestTree -> TestTree
 adjSCDepth x = adjustOption (x +)
