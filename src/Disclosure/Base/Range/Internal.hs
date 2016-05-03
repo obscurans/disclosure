@@ -1,16 +1,10 @@
 {-|
 Module      : Disclosure.Base.Range.Internal
-Description : Datatypes for unbounded and bounded ranges
+Description : Internal datatype definitions and functions
 Copyright   : (c) 2016 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
 Portability : portable
-
-Defines types for unbounded and bounded ranges, which are closed intervals over
-ordered types, represented by a 2-tuple. For unbounded ranges, interval bounds
-are wrapped in 'Maybe', with 'Nothing' representing the appropriate infinity for
-half-open or open ranges. For bounded ranges, 'minBound', 'maxBound' are treated
-as infinities.
 -}
 module Disclosure.Base.Range.Internal where
 

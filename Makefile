@@ -1,6 +1,11 @@
-.PHONY: all doc test
+.PHONY: all init doc test
 
 all: doc test
+
+init:
+	#cabal sandbox init
+	cabal install --only-dependencies --enable-tests
+	cabal configure --enable-tests
 
 doc:
 	cabal haddock

@@ -14,7 +14,7 @@ tests = testGroup "Disclosure.Base.Util"
     , _'compareMeet
     , _'compareMeet' ]
 
-_'Monoid' = adjSCDepth 1 $ testGroup "Monoid'"
+_'Monoid' = setSCDepth 6 $ testGroup "Monoid'"
     [ sTestProperty "mconcat'" _mconcat' ]
 
 newtype LSmallint = LSmallint [Smallint] deriving (Eq, Show)
@@ -29,7 +29,7 @@ _mconcat' :: [Smallint] -> Bool
 _mconcat' x = mconcat' (fmap (LSmallint . (:[])) x) ==
                 if any (== 0) x then Nothing else Just $ LSmallint x
 
-_'toMaybe = adjSCDepth 5 $ sTestProperty "toMaybe" _toMaybe
+_'toMaybe = setSCDepth 10 $ sTestProperty "toMaybe" _toMaybe
 
 _toMaybe :: Smallint -> Bool
 _toMaybe x = toMaybe odd x == if odd x then Just x else Nothing
@@ -48,7 +48,7 @@ _NothingLast1 x = compare (NLast Nothing) (NLast $ Just x) == GT &&
 _NothingLast2 :: Smallint -> Smallint -> Bool
 _NothingLast2 x y = compare (NLast $ Just x) (NLast $ Just y) == compare x y
 
-_'compareMaybeR = adjSCDepth 5 $ testGroup "compareMaybeR"
+_'compareMaybeR = setSCDepth 10 $ testGroup "compareMaybeR"
     [ testCase "both Nothing" _compareMaybeR0
     , sTestProperty "1 Nothing" _compareMaybeR1
     , sTestProperty "both Just" _compareMaybeR2 ]
@@ -62,7 +62,7 @@ _compareMaybeR1 x = compareMaybeR Nothing (Just x) == LT &&
 _compareMaybeR2 :: Smallint -> Smallint -> Bool
 _compareMaybeR2 x y = compareMaybeR (Just x) (Just y) == compare x y
 
-_'liftAbsorb2 = adjSCDepth 5 $ testGroup "liftAbsorb2"
+_'liftAbsorb2 = setSCDepth 10 $ testGroup "liftAbsorb2"
     [ testCase "both Nothing" _liftAbsorb20
     , sTestProperty "1 Nothing" _liftAbsorb21
     , sTestProperty "both Just" _liftAbsorb22 ]
@@ -79,7 +79,7 @@ _liftAbsorb22 x y = liftAbsorb2 (-) (Just x) (Just y) == Just (x - y)
 sub' :: Smallint -> Smallint -> Maybe Smallint
 sub' x y = if odd (x - y) then Nothing else Just (x - y)
 
-_'liftAbsorbM2 = adjSCDepth 5 $ testGroup "liftAbsorbM2"
+_'liftAbsorbM2 = setSCDepth 10 $ testGroup "liftAbsorbM2"
     [ testCase "both Nothing" _liftAbsorbM20
     , sTestProperty "1 Nothing" _liftAbsorbM21
     , sTestProperty "both Just" _liftAbsorbM22 ]
@@ -93,7 +93,7 @@ _liftAbsorbM21 x = liftAbsorbM2 sub' Nothing (Just x) == Just x &&
 _liftAbsorbM22 :: Smallint -> Smallint -> Bool
 _liftAbsorbM22 x y = liftAbsorbM2 sub' (Just x) (Just y) == sub' x y
 
-_'compareMeet = adjSCDepth 10 $ sTestProperty "compareMeet" _compareMeet
+_'compareMeet = setSCDepth 15 $ sTestProperty "compareMeet" _compareMeet
 
 _compareMeet :: Latticeint -> Latticeint -> Bool
 _compareMeet x y
@@ -103,7 +103,7 @@ _compareMeet x y
     | otherwise = r == EQ
     where r = compareMeet x y
 
-_'compareMeet' = adjSCDepth 10 $ sTestProperty "compareMeet'" _compareMeet'
+_'compareMeet' = setSCDepth 15 $ sTestProperty "compareMeet'" _compareMeet'
 
 _compareMeet' :: Latticeint -> Latticeint -> Bool
 _compareMeet' x y
