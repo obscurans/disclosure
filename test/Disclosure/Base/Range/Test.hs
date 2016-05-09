@@ -4,7 +4,7 @@ import Data.Maybe
 import Disclosure.Test.Util
 import Disclosure.Base.Util
 import Disclosure.Base.Range.Internal
---import Disclosure.Base.Range
+import Disclosure.Base.Range
 
 tests :: TestTree
 tests = testGroup "Disclosure.Base.Range"
@@ -17,7 +17,14 @@ tests = testGroup "Disclosure.Base.Range"
     , _'monoid'URange
     , _'monoid'BRange
     , _'punionUR
-    , _'punionBR ]
+    , _'punionBR
+    , _'toURange'
+    , _'uRangeEQ
+    , _'bRangeEQ
+    , _'uRangeLE
+    , _'bRangeLE
+    , _'uRangeGE
+    , _'bRangeGE ]
 
 _'toURange = setSCDepth 15 $ sTestProperty "toURange" _toURange
 
@@ -148,4 +155,39 @@ _punionBR :: OPBSmallint -> OPBSmallint -> Bool
 _punionBR a@(OPBSI (x, y)) b@(OPBSI (w, z)) =
     punionBR (toSBRange a) (toSBRange b) == result
     where result = fromJust $ toBRange (min x w, max y z)
+
+_'toURange' = setSCDepth 15 $ sTestProperty "toURange'" _toURange'
+
+_toURange' :: (Smallint, Smallint) -> Bool
+_toURange' a@(x, y) = toURange' a == toURange (Just x, Just y)
+
+_'uRangeEQ = setSCDepth 30 $ sTestProperty "uRangeEQ" _uRangeEQ
+
+_uRangeEQ :: Smallint -> Bool
+_uRangeEQ x = uRangeEQ x == toURange (Just x, Just x)
+
+_'bRangeEQ = setSCDepth 30 $ sTestProperty "bRangeEQ" _bRangeEQ
+
+_bRangeEQ :: Smallint -> Bool
+_bRangeEQ x = bRangeEQ x == toBRange (x, x)
+
+_'uRangeLE = setSCDepth 30 $ sTestProperty "uRangeLE" _uRangeLE
+
+_uRangeLE :: Smallint -> Bool
+_uRangeLE x = uRangeLE x == toURange (Nothing, Just x)
+
+_'bRangeLE = setSCDepth 30 $ sTestProperty "bRangeLE" _bRangeLE
+
+_bRangeLE :: Smallint -> Bool
+_bRangeLE x = bRangeLE x == toBRange (minBound, x)
+
+_'uRangeGE = setSCDepth 30 $ sTestProperty "uRangeGE" _uRangeGE
+
+_uRangeGE :: Smallint -> Bool
+_uRangeGE x = uRangeGE x == toURange (Just x, Nothing)
+
+_'bRangeGE = setSCDepth 30 $ sTestProperty "bRangeGE" _bRangeGE
+
+_bRangeGE :: Smallint -> Bool
+_bRangeGE x = bRangeGE x == toBRange (x, maxBound)
 

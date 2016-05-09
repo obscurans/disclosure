@@ -29,7 +29,7 @@ _mconcat' :: [Smallint] -> Bool
 _mconcat' x = mconcat' (fmap (LSI . (:[])) x) ==
                 if any (== 0) x then Nothing else Just $ LSI x
 
-_'toMaybe = setSCDepth 15 $ sTestProperty "toMaybe" _toMaybe
+_'toMaybe = setSCDepth 30 $ sTestProperty "toMaybe" _toMaybe
 
 _toMaybe :: Smallint -> Bool
 _toMaybe x = toMaybe odd x == if odd x then Just x else Nothing
