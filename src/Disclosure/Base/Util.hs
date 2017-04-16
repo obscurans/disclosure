@@ -1,7 +1,7 @@
 {-|
 Module      : Disclosure.Base.Util
 Description : Internal utility functions
-Copyright   : (c) 2016 Jeffrey Tsang
+Copyright   : (c) 2016-2017 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
 Portability : portable
@@ -10,10 +10,8 @@ Internal utility functions
 -}
 module Disclosure.Base.Util where
 
-import Data.Monoid
 import Data.Tuple.Curry
 import Data.Tuple.Homogenous
-import Control.Applicative
 import Control.Monad
 
 -- | A possibly failing 'Monoid', where 'mappend'' returns 'Maybe' @a@ instead
@@ -72,6 +70,7 @@ toMaybe f x = if f x then Just x else Nothing
 
 -- | Newtype wrapper for 'Maybe' @a@ that orders 'Nothing' last, 'Just' normally
 newtype NothingLast a = NLast { unNLast :: (Maybe a) } deriving Eq
+-- | 'Nothing' is last, 'Just' inherits 'Ord'
 instance Ord a => Ord (NothingLast a) where
     {-# INLINABLE compare #-}
     compare (NLast Nothing) (NLast Nothing) = EQ

@@ -107,54 +107,54 @@ _'monoid'URange = testGroup "Monoid' URange"
     , setSCDepth 7 $ sTestProperty "mappend'" _mappend'URange ]
 
 _mempty'URange :: MOPSmallint -> Bool
-_mempty'URange x = fromJust (mappend' y mempty') == y &&
-                   fromJust (mappend' mempty' y) == y
+_mempty'URange x = maybe False (== y) (mappend' y mempty') &&
+                   maybe False (== y) (mappend' mempty' y)
                    where y = toSURange x
 
 _mappend'URange :: MOPSmallint -> MOPSmallint -> Bool
 _mappend'URange a@(MOPSI (x, y)) b@(MOPSI (w, z))
     | compareMaybeR maxl minh == GT = failure
-    | otherwise = check $ fromJust $ toURange (maxl, minh)
+    | otherwise = check $ toURange (maxl, minh)
     where maxl = max x w
           minh = liftN2 NLast unNLast min y z
           a' = toSURange a
           b' = toSURange b
           failure = isNothing $ mappend' a' b'
-          check = (mappend' a' b' ==) . Just
+          check = (mappend' a' b' ==)
 
 _'monoid'BRange = testGroup "Monoid' BRange"
     [ setSCDepth 15 $ sTestProperty "mempty'" _mempty'BRange
     , setSCDepth 7 $ sTestProperty "mappend'" _mappend'BRange ]
 
 _mempty'BRange :: OPBSmallint -> Bool
-_mempty'BRange x = fromJust (mappend' y mempty') == y &&
-                   fromJust (mappend' mempty' y) == y
+_mempty'BRange x = maybe False (== y) (mappend' y mempty') &&
+                   maybe False (== y) (mappend' mempty' y)
                    where y = toSBRange x
 
 _mappend'BRange :: OPBSmallint -> OPBSmallint -> Bool
 _mappend'BRange a@(OPBSI (x, y)) b@(OPBSI (w, z))
     | maxl > minh = failure
-    | otherwise = check $ fromJust $ toBRange (maxl, minh)
+    | otherwise = check $ toBRange (maxl, minh)
     where maxl = max x w
           minh = min y z
           a' = toSBRange a
           b' = toSBRange b
           failure = isNothing $ mappend' a' b'
-          check = (mappend' a' b' ==) . Just
+          check = (mappend' a' b' ==)
 
 _'punionUR = setSCDepth 7 $ sTestProperty "punionUR" _punionUR
 
 _punionUR :: MOPSmallint -> MOPSmallint -> Bool
 _punionUR a@(MOPSI (x, y)) b@(MOPSI (w, z)) =
-    punionUR (toSURange a) (toSURange b) == result
-    where result = fromJust $ toURange (min x w, liftN2 NLast unNLast max y z)
+    maybe False (== punionUR (toSURange a) (toSURange b)) result
+    where result = toURange (min x w, liftN2 NLast unNLast max y z)
 
 _'punionBR = setSCDepth 7 $ sTestProperty "punionBR" _punionBR
 
 _punionBR :: OPBSmallint -> OPBSmallint -> Bool
 _punionBR a@(OPBSI (x, y)) b@(OPBSI (w, z)) =
-    punionBR (toSBRange a) (toSBRange b) == result
-    where result = fromJust $ toBRange (min x w, max y z)
+    maybe False (== punionBR (toSBRange a) (toSBRange b)) result
+    where result = toBRange (min x w, max y z)
 
 _'toURange' = setSCDepth 15 $ sTestProperty "toURange'" _toURange'
 

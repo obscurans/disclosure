@@ -1,7 +1,7 @@
 {-|
 Module      : Disclosure.Base.Range.Internal
 Description : Internal datatype definitions and functions
-Copyright   : (c) 2016 Jeffrey Tsang
+Copyright   : (c) 2016-2017 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
 Portability : portable
@@ -26,11 +26,7 @@ newtype URange a = URange {
 toURange :: Ord a => (Maybe a, Maybe a) -> Maybe (URange a)
 {-# INLINABLE toURange #-}
 toURange = fmap URange . valURangeR
-
--- | Validates an unboxed 'URange'
-valURangeR :: Ord a => (Maybe a, Maybe a) -> Maybe (Maybe a, Maybe a)
-{-# INLINABLE valURangeR #-}
-valURangeR = toMaybe (\(x, y) -> maybe True id (liftM2 (<=) x y))
+    where valURangeR = toMaybe (\(x, y) -> maybe True id (liftM2 (<=) x y))
 
 {-| A validated, nonempty closed interval over a bounded, ordered type,
 represented as a boxed @(a, a)@ for [low, high]. Ranges are valid if @minBound@
@@ -45,12 +41,8 @@ newtype BRange a = BRange {
 toBRange :: (Bounded a, Ord a) => (a, a) -> Maybe (BRange a)
 {-# INLINABLE toBRange #-}
 toBRange = fmap BRange . valBRangeR
-
--- | Validates an unboxed 'BRange'
-valBRangeR :: (Bounded a, Ord a) => (a, a) -> Maybe (a, a)
-{-# INLINABLE valBRangeR #-}
-valBRangeR = toMaybe (\(x, y) -> x >= minBound && x <= maxBound &&
-                      y >= minBound && y <= maxBound && x <= y)
+    where valBRangeR = toMaybe (\(x, y) -> x >= minBound && x <= maxBound &&
+                                y >= minBound && y <= maxBound && x <= y)
 
 {-|
 * (-∞, ∞) or the universal range becomes @\"?\"@
@@ -124,15 +116,21 @@ instance (Bounded a, Ord a) => Monoid' (BRange a) where
     mappend' = liftN2 unBRange toBRange intBRange where
         intBRange (l, h) (l', h') = (max l l', min h h')
 
--- | Takes the permissive union: for two ranges [@l@, @h@] and [@l@', @h@'], the
--- result is [@min l l@', @max h h@'].
+{-| Takes the permissive union: for two ranges [@l@, @h@] and [@l@', @h@'], the
+result is [@min l l@', @max h h@'].
+
+See also 'Disclosure.Base.CompoundRange.unionUR' for true union.
+-}
 punionUR :: Ord a => URange a -> URange a -> URange a
 {-# INLINABLE punionUR #-}
 punionUR (URange (l, h)) (URange (l', h')) =
     URange (min l l', liftN2 NLast unNLast max h h')
 
--- | Takes the permissive union: for two ranges [@l@, @h@] and [@l@', @h@'], the
--- result is [@min l l@', @max h h@'].
+{-| Takes the permissive union: for two ranges [@l@, @h@] and [@l@', @h@'], the
+result is [@min l l@', @max h h@'].
+
+See also 'Disclosure.Base.CompoundRange.unionBR' for true union.
+-}
 punionBR :: Ord a => BRange a -> BRange a -> BRange a
 {-# INLINABLE punionBR #-}
 punionBR (BRange (l, h)) (BRange (l', h')) = BRange (min l l', max h h')

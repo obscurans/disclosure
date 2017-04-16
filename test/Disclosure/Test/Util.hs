@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses,
-    GeneralizedNewtypeDeriving #-}
+    GeneralizedNewtypeDeriving, PartialTypeSignatures #-}
 module Disclosure.Test.Util
 ( module Disclosure.Test.Util
 , module Test.Tasty
@@ -33,16 +33,17 @@ adjSCDepth x = adjustOption (x +)
 suchThat :: Series m a -> (a -> Bool) -> Series m a
 suchThat s p = s >>= \x -> if p x then pure x else empty
 
-orderedPair :: (Monad m, Ord a) => Series m a -> Series m a -> Series m (a, a)
-orderedPair = _' (flip suchThat (\(x, y) -> x <= y)) . (><)
+orderedPair :: (Monad m, Ord a) => Series m a -> Series m (a, a)
+orderedPair = flip suchThat (\(x, y) -> x <= y) . join (><)
 
-orderedMPair :: (Monad m, Ord a) => Series m (Maybe a) -> Series m (Maybe a)
+orderedMPair :: (Monad m, Ord a) => Series m (Maybe a)
                                  -> Series m (Maybe a, Maybe a)
-                                             -- used after its own test
-orderedMPair = _' (flip suchThat (\(x, y) -> compareMaybeR x y /= GT)) . (><)
+                                         -- used after its own test
+orderedMPair = flip suchThat (\(x, y) -> compareMaybeR x y /= GT) . join (><)
 
 -- | 0, 1, -1, 13, 14, [2 .. 12], 15, -2, 16, -3 ... Serial type (one per depth)
-newtype Smallint = SI Int
+newtype Smallint = SI {
+    unSI :: Int }
     deriving (Eq, Ord, Enum, Num, Integral, Real, Show)
 
 -- | Bounded instance is specifically incorrect
@@ -57,14 +58,16 @@ instance Monad m => Serial m Smallint where
 nothingSmallint = Nothing :: Maybe Smallint
 
 -- | Ordered pair of Maybe Smallints, such that x <= y if both defined
-newtype MOPSmallint = MOPSI (Maybe Smallint, Maybe Smallint)
+newtype MOPSmallint = MOPSI {
+    unMOPSI :: (Maybe Smallint, Maybe Smallint) }
     deriving (Eq, Ord, Show)
 
 instance Monad m => Serial m MOPSmallint where
-    series = MOPSI <$> orderedMPair series series
+    series = MOPSI <$> orderedMPair series
 
 -- | Specific order of 0 .. 13 (only) Serial type (one per depth)
-newtype BSmallint = BSI Int
+newtype BSmallint = BSI {
+    unBSI :: Int }
     deriving (Eq, Ord, Enum, Num, Integral, Real, Show)
 
 instance Bounded BSmallint where
@@ -76,11 +79,26 @@ instance Monad m => Serial m BSmallint where
             0 : 1 : 13 : 7 : ([2 .. 6] >>= \x -> [x, 14 - x])
 
 -- | Ordered pair of BSmallints, such that x <= y
-newtype OPBSmallint = OPBSI (BSmallint, BSmallint)
+newtype OPBSmallint = OPBSI {
+    unOPBSI :: (BSmallint, BSmallint) }
     deriving (Eq, Ord, Bounded, Show)
 
 instance Monad m => Serial m OPBSmallint where
-    series = OPBSI <$> orderedPair series series
+    series = OPBSI <$> orderedPair series
+
+newtype OLMPSmallint = OLMPSI {
+    unOLMPSI :: [(Maybe Smallint, Maybe Smallint)] }
+    deriving (Eq, Ord, Show)
+
+instance Monad m => Serial m OLMPSmallint where
+    series = OLMPSI <$> fmap unMOPSI <$> (series :: Series _ [MOPSmallint])
+
+newtype OLPBSmallint = OLPBSI {
+    unOLPBSI :: [(BSmallint, BSmallint)] }
+    deriving (Eq, Ord, Show)
+
+instance Monad m => Serial m OLPBSmallint where
+    series = OLPBSI <$> fmap unOPBSI <$> (series :: Series _ [OPBSmallint])
 
 -- | [2 .. 6] * [2 .. 6] Serial type
 newtype Latticeint = Latticeint Int

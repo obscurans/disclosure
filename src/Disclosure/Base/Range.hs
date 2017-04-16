@@ -1,7 +1,7 @@
 {-|
 Module      : Disclosure.Base.Range
 Description : Datatypes for unbounded and bounded ranges
-Copyright   : (c) 2016 Jeffrey Tsang
+Copyright   : (c) 2016-2017 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
 Portability : portable

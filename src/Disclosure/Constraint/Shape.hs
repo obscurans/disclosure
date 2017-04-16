@@ -1,7 +1,7 @@
 {-|
 Module      : Disclosure.Constraint.Shape
 Description : Datatypes for ranges of individual suit lengths and hand shapes
-Copyright   : (c) 2016 Jeffrey Tsang
+Copyright   : (c) 2016-2017 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
 Portability : portable

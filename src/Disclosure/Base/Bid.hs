@@ -1,7 +1,7 @@
 {-|
 Module      : Disclosure.Base.Bid
 Description : Datatypes for denominations, bids, and calls
-Copyright   : (c) 2016 Jeffrey Tsang
+Copyright   : (c) 2016-2017 Jeffrey Tsang
 License     : All rights reserved
 Maintainer  : jeffrey.tsang@ieee.org
 Portability : portable
