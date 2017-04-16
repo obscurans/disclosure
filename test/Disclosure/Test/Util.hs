@@ -34,12 +34,27 @@ suchThat :: Series m a -> (a -> Bool) -> Series m a
 suchThat s p = s >>= \x -> if p x then pure x else empty
 
 orderedPair :: (Monad m, Ord a) => Series m a -> Series m (a, a)
-orderedPair = flip suchThat (\(x, y) -> x <= y) . join (><)
+orderedPair = decDepth . flip suchThat (\(x, y) -> x <= y) . join (><)
 
 orderedMPair :: (Monad m, Ord a) => Series m (Maybe a)
                                  -> Series m (Maybe a, Maybe a)
-                                         -- used after its own test
-orderedMPair = flip suchThat (\(x, y) -> compareMaybeR x y /= GT) . join (><)
+orderedMPair = decDepth . decDepth .      -- used after its own test
+                flip suchThat (\(x, y) -> compareMaybeR x y /= GT) . join (><)
+
+orderedPList :: (Monad m, Ord a) => Series m a -> Series m [(a, a)]
+orderedPList s = cons0 [] \/ (flip suchThat ordP $ decDepth $ (:) <$>
+                    orderedPair s <~> orderedPList s)
+    where ordP [] = True
+          ordP [x] = True
+          ordP ((_,x2):(y1,_):_) = x2 < y1
+
+orderedMPList :: (Monad m, Ord a) => Series m (Maybe a)
+                                  -> Series m [(Maybe a, Maybe a)]
+orderedMPList s = cons0 [] \/ (flip suchThat ordMP $ decDepth $ (:) <$>
+                    orderedMPair s <~> orderedMPList s)
+    where ordMP [] = True
+          ordMP [x] = True
+          ordMP ((_,x2):(y1,_):_) = fromMaybe False $ liftM2 (<) x2 y1
 
 -- | 0, 1, -1, 13, 14, [2 .. 12], 15, -2, 16, -3 ... Serial type (one per depth)
 newtype Smallint = SI {
@@ -91,14 +106,14 @@ newtype OLMPSmallint = OLMPSI {
     deriving (Eq, Ord, Show)
 
 instance Monad m => Serial m OLMPSmallint where
-    series = OLMPSI <$> fmap unMOPSI <$> (series :: Series _ [MOPSmallint])
+    series = OLMPSI <$> orderedMPList series
 
 newtype OLPBSmallint = OLPBSI {
     unOLPBSI :: [(BSmallint, BSmallint)] }
     deriving (Eq, Ord, Show)
 
 instance Monad m => Serial m OLPBSmallint where
-    series = OLPBSI <$> fmap unOPBSI <$> (series :: Series _ [OPBSmallint])
+    series = OLPBSI <$> orderedPList series
 
 -- | [2 .. 6] * [2 .. 6] Serial type
 newtype Latticeint = Latticeint Int
@@ -118,3 +133,54 @@ instance Monoid' Latticeint where
     mempty' = join (*) $ foldr lcm 1 [1 .. 6]
     mappend' x y = if gcd x y == 1 then Nothing else Just $ gcd x y
 
+-- | Test harnesses for setting depth on specific input types
+testLI2 :: String -> (Latticeint -> Latticeint -> Bool) -> TestTree
+testLI2 = _' (setSCDepth 15) . sTestProperty
+
+testSI :: String -> (Smallint -> Bool) -> TestTree
+testSI = _' (setSCDepth 30) . sTestProperty
+
+testLSI :: String -> ([Smallint] -> Bool) -> TestTree
+testLSI = _' (setSCDepth 6) . sTestProperty
+
+testMSI2 :: String -> (Maybe Smallint -> Maybe Smallint -> Bool) -> TestTree
+testMSI2 = _' (setSCDepth 15) . sTestProperty
+
+testSI2 :: String -> (Smallint -> Smallint -> Bool) -> TestTree
+testSI2 = _' (setSCDepth 15) . sTestProperty
+
+testMSIP :: String -> ((Maybe Smallint, Maybe Smallint) -> Bool) -> TestTree
+testMSIP = _' (setSCDepth 16) . sTestProperty
+
+testSIP :: String -> ((Smallint, Smallint) -> Bool) -> TestTree
+testSIP = _' (setSCDepth 16) . sTestProperty
+
+testMOPSI :: String -> (MOPSmallint -> Bool) -> TestTree
+testMOPSI = _' (setSCDepth 21) . sTestProperty
+
+testOPBSI :: String -> (OPBSmallint -> Bool) -> TestTree
+testOPBSI = _' (setSCDepth 21) . sTestProperty
+
+testMOPSI2 :: String -> (MOPSmallint -> MOPSmallint -> Bool) -> TestTree
+testMOPSI2 = _' (setSCDepth 8) . sTestProperty
+
+testOPBSI2 :: String -> (OPBSmallint -> OPBSmallint -> Bool) -> TestTree
+testOPBSI2 = _' (setSCDepth 8) . sTestProperty
+
+testMOPSIL :: String -> ([MOPSmallint] -> Bool) -> TestTree
+testMOPSIL = _' (setSCDepth 7) . sTestProperty
+
+testOPBSIL :: String -> ([OPBSmallint] -> Bool) -> TestTree
+testOPBSIL = _' (setSCDepth 6) . sTestProperty
+
+testOLMPSI :: String -> (OLMPSmallint -> Bool) -> TestTree
+testOLMPSI = _' (setSCDepth 8) . sTestProperty
+
+testOLPBSI :: String -> (OLPBSmallint -> Bool) -> TestTree
+testOLPBSI = _' (setSCDepth 7) . sTestProperty
+
+testOLMPSI2 :: String -> (OLMPSmallint -> OLMPSmallint -> Bool) -> TestTree
+testOLMPSI2 = _' (setSCDepth 7) . sTestProperty
+
+testOLPBSI2 :: String -> (OLPBSmallint -> OLPBSmallint -> Bool) -> TestTree
+testOLPBSI2 = _' (setSCDepth 6) . sTestProperty

@@ -12,7 +12,6 @@ module Disclosure.Base.Bid (
 -- * Datatypes and constructors
   Lv
 , toLv
-, toLv'
 , unLv
 , Denom(..)
 , Bid(..)
@@ -32,15 +31,9 @@ newtype Lv = Lv {
     -- | Unboxes a Lv
     unLv :: Int } deriving (Eq, Ord)
 
--- | Checks and constructs a 'Lv', error on invalid input
-toLv :: Int -> Lv
-toLv l
-    | l < 1 || l > 7 = error "invalid toLv"
-    | otherwise = Lv l
-
 -- | Checks and 'Maybe' constructs a 'Lv'
-toLv' :: Int -> Maybe Lv
-toLv' l
+toLv :: Int -> Maybe Lv
+toLv l
     | l < 1 || l > 7 = Nothing
     | otherwise = Just $ Lv l
 
@@ -62,9 +55,10 @@ instance Show Lv where
 
 -- | Directly as 'Int', checked
 instance Read Lv where
-    readsPrec _ (x:xs)
+    readsPrec _ [] = []
+    readsPrec _ (x:xt)
         | x < '1' || x > '7' = []
-        | otherwise = [(Lv (ord x - ord '0'), xs)]
+        | otherwise = [(Lv (ord x - ord '0'), xt)]
 
 -- | Enumeration of the 5 denominations
 data Denom = C | D | H | S | NT deriving (Eq, Ord, Bounded, Enum, Show)
@@ -74,7 +68,7 @@ data Denom = C | D | H | S | NT deriving (Eq, Ord, Bounded, Enum, Show)
 -- __TODO:__ allow parses with remainder.
 instance Read Denom where
     readsPrec _ xs
-        | xs == [] = []
+        | [] <- xs = []
         | matchCIPre xs "clubs" = succeed C
         | matchCIPre xs "diamonds" = succeed D
         | matchCIPre xs "hearts" = succeed H
@@ -123,4 +117,3 @@ instance Read Call where
         | matchCIPre x "x" = succeed Dbl
         | otherwise = []
         where succeed y = [(y, [])]
-

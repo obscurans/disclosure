@@ -12,24 +12,45 @@ import Disclosure.Base.CompoundRange.Internal
 
 tests :: TestTree
 tests = testGroup "Disclosure.Base.CompoundRange"
-    [ _'toCURange
-    , _'toCBRange
-    , _'showCURange
-    , _'showCBRange
-    , _'monoidCURange
-    , _'monoidCBRange
-    , _'liftURange
-    , _'liftBRange
-    , _'unionURange
-    , _'unionBRange
-    , _'unionCUR
-    , _'unionCBR
-    , _'punionCUR
-    , _'punionCBR
-    , _'collapseCUR
-    , _'collapseCBR
-    , _'transformCUR
-    , _'transformCBR ]
+    [ testMOPSIL "toCURange" _toCURange
+    , testOPBSIL "toCBRange" _toCBRange
+    , testGroup "Show CURange"
+        [ testOLMPSI "show" _showCURange ]
+    , testGroup "Show CBRange"
+        [ testOLPBSI "show" _showCBRange ]
+    , testGroup "Monoid CURange"
+        [ testOLMPSI "mempty" _memptyCURange
+        , testOLMPSI2 "mappend" _mappendCURange ]
+    , testGroup "Monoid CBRange"
+        [ testOLPBSI "mempty" _memptyCBRange
+        , testOLPBSI2 "mappend" _mappendCBRange ]
+    , testMOPSI "liftURange" _liftURange
+    , testOPBSI "liftBRange" _liftBRange
+    , testMOPSI2 "unionURange" _unionURange
+    , testOPBSI2 "unionBRange" _unionBRange
+    , testOLMPSI2 "unionCUR" _unionCUR
+    , testOLPBSI2 "unionCBR" _unionCBR
+    , testOLMPSI "punionCUR" _punionCUR
+    , testOLPBSI "punionCBR" _punionCBR
+    , testGroup "collapseCUR"
+        [ testOLMPSI "null" _collapseCUR_null
+        , testOLMPSI "universal" _collapseCUR_universal
+        , testOLMPSI "adjacent" _collapseCUR_adjacent ]
+    , testGroup "collapseCBR"
+        [ testOLPBSI "null" _collapseCBR_null
+        , testOLPBSI "universal" _collapseCBR_universal
+        , testOLPBSI "adjacent" _collapseCBR_adjacent ]
+    , testGroup "transformCUR"
+        [ testOLMPSI "id" _transformCUR_id
+        , testOLMPSI "const" $ _transformCUR_f (const (1::Double))
+        , testOLMPSI "mul2" $ _transformCUR_f $ (*2) . unSI
+        , testOLMPSI "quot2" $ _transformCUR_f (`quot` 2) ]
+    , testGroup "transformCBR"
+        [ testOLPBSI "id" _transformCBR_id
+        , testOLPBSI "const" $ _transformCBR_f (const (1::Int))
+        , testOLPBSI "mul2" $ _transformCBR_f $ (*2) . unBSI
+        , testOLPBSI "quot2" $ _transformCBR_f (`quot` 2) ]
+    ]
 
 primaFacieCUR :: Ord a => CURange a -> Bool
 primaFacieCUR (CURange x) = primaFacieCUR' x
@@ -125,22 +146,15 @@ toRawCUR = catMaybes . map toURange
 toRawCBR :: [(BSmallint, BSmallint)] -> [BRange BSmallint]
 toRawCBR = catMaybes . map toBRange
 
-_'toCURange = setSCDepth 5 $ sTestProperty "toCURange" _toCURange
-
 _toCURange :: [MOPSmallint] -> Bool
 _toCURange x = primaFacieCUR r && equivalentCUR r c
     where c = toRawCUR $ map unMOPSI x
           r = toCURange c
 
-_'toCBRange = setSCDepth 5 $ sTestProperty "toCBRange" _toCBRange
-
 _toCBRange :: [OPBSmallint] -> Bool
 _toCBRange x = primaFacieCBR r && equivalentCBR r c
     where c = toRawCBR $ map unOPBSI x
           r = toCBRange c
-
-_'showCURange = setSCDepth 5 $ testGroup "Show CURange"
-    [ sTestProperty "show" _showCURange ]
 
 _showCURange :: OLMPSmallint -> Bool
 _showCURange (OLMPSI x) = _showCURange' $ toCURange $ toRawCUR x
@@ -150,9 +164,6 @@ _showCURange (OLMPSI x) = _showCURange' $ toCURange $ toRawCUR x
             | otherwise = show y ==
                                 "(" ++ (intercalate " or " (fmap show r)) ++ ")"
 
-_'showCBRange = setSCDepth 5 $ testGroup "Show CBRange"
-    [ sTestProperty "show" _showCBRange ]
-
 _showCBRange :: OLPBSmallint -> Bool
 _showCBRange (OLPBSI x) = _showCBRange' $ toCBRange $ toRawCBR x
     where _showCBRange' y@(CBRange r)
@@ -160,10 +171,6 @@ _showCBRange (OLPBSI x) = _showCBRange' $ toCBRange $ toRawCBR x
             | [x] <- r = show y == show x
             | otherwise = show y ==
                                 "(" ++ (intercalate " or " (fmap show r)) ++ ")"
-
-_'monoidCURange = testGroup "Monoid CURange"
-    [ setSCDepth 5 $ sTestProperty "mempty" _memptyCURange
-    , setSCDepth 4 $ sTestProperty "mappend" _mappendCURange ]
 
 _memptyCURange :: OLMPSmallint -> Bool
 _memptyCURange (OLMPSI x) = mappend mempty r == r && mappend r mempty == r
@@ -176,10 +183,6 @@ _mappendCURange (OLMPSI x) (OLMPSI y) = primaFacieCUR r &&
           yr = toRawCUR y
           r = mappend (toCURange xr) (toCURange yr)
 
-_'monoidCBRange = testGroup "Monoid CBRange"
-    [ setSCDepth 5 $ sTestProperty "mempty" _memptyCBRange
-    , setSCDepth 4 $ sTestProperty "mappend" _mappendCBRange ]
-
 _memptyCBRange :: OLPBSmallint -> Bool
 _memptyCBRange (OLPBSI x) = mappend mempty r == r && mappend r mempty == r
     where r = toCBRange $ toRawCBR x
@@ -191,19 +194,13 @@ _mappendCBRange (OLPBSI x) (OLPBSI y) = primaFacieCBR r &&
           yr = toRawCBR y
           r = mappend (toCBRange xr) (toCBRange yr)
 
-_'liftURange = setSCDepth 20 $ sTestProperty "liftURange" _liftURange
-
 _liftURange :: MOPSmallint -> Bool
 _liftURange (MOPSI x) = maybe True (\y -> unCURange (liftURange y) == [y]) r
     where r = toURange x
 
-_'liftBRange = setSCDepth 20 $ sTestProperty "liftBRange" _liftBRange
-
 _liftBRange :: OPBSmallint -> Bool
 _liftBRange (OPBSI x) = maybe True (\y -> unCBRange (liftBRange y) == [y]) r
     where r = toBRange x
-
-_'unionURange = setSCDepth 10 $ sTestProperty "unionURange" _unionURange
 
 _unionURange :: MOPSmallint -> MOPSmallint -> Bool
 _unionURange (MOPSI x) (MOPSI y) = fromMaybe True $ liftM2 f xr yr
@@ -212,16 +209,12 @@ _unionURange (MOPSI x) (MOPSI y) = fromMaybe True $ liftM2 f xr yr
           f = \x y -> let r = unionURange x y in
                         primaFacieCUR r && equivalentCUR r [x, y]
 
-_'unionBRange = setSCDepth 10 $ sTestProperty "unionBRange" _unionBRange
-
 _unionBRange :: OPBSmallint -> OPBSmallint -> Bool
 _unionBRange (OPBSI x) (OPBSI y) = fromMaybe True $ liftM2 f xr yr
     where xr = toBRange x
           yr = toBRange y
           f = \x y -> let r = unionBRange x y in
                         primaFacieCBR r && equivalentCBR r [x, y]
-
-_'unionCUR = setSCDepth 4 $ sTestProperty "unionCUR" _unionCUR
 
 _unionCUR :: OLMPSmallint -> OLMPSmallint -> Bool
 _unionCUR (OLMPSI x) (OLMPSI y) = primaFacieCUR r && equivalentCUR r xy
@@ -230,8 +223,6 @@ _unionCUR (OLMPSI x) (OLMPSI y) = primaFacieCUR r && equivalentCUR r xy
           r = unionCUR xr yr
           xy = unCURange xr ++ unCURange yr
 
-_'unionCBR = setSCDepth 4 $ sTestProperty "unionCBR" _unionCBR
-
 _unionCBR :: OLPBSmallint -> OLPBSmallint -> Bool
 _unionCBR (OLPBSI x) (OLPBSI y) = primaFacieCBR r && equivalentCBR r xy
     where xr = toCBRange $ toRawCBR x
@@ -239,26 +230,17 @@ _unionCBR (OLPBSI x) (OLPBSI y) = primaFacieCBR r && equivalentCBR r xy
           r = unionCBR xr yr
           xy = unCBRange xr ++ unCBRange yr
 
-_'punionCUR = setSCDepth 5 $ sTestProperty "punionCUR" _punionCUR
-
 _punionCUR :: OLMPSmallint -> Bool
 _punionCUR (OLMPSI x) = injectCUR r y
     where y = toRawCUR x
           u = punionCUR $ toCURange y
           r = maybe (toCURange []) liftURange u
 
-_'punionCBR = setSCDepth 5 $ sTestProperty "punionCBR" _punionCBR
-
 _punionCBR :: OLPBSmallint -> Bool
 _punionCBR (OLPBSI x) = injectCBR r y
     where y = toRawCBR x
           u = punionCBR $ toCBRange y
           r = maybe (toCBRange []) liftBRange u
-
-_'collapseCUR = setSCDepth 5 $ testGroup "collapseCUR"
-    [ sTestProperty "null" _collapseCUR_null
-    , sTestProperty "universal" _collapseCUR_universal
-    , sTestProperty "adjacent" _collapseCUR_adjacent ]
 
 _collapseCUR_null :: OLMPSmallint -> Bool
 _collapseCUR_null (OLMPSI x) = primaFacieCUR r && r == y
@@ -282,11 +264,6 @@ _collapseCUR_adjacent (OLMPSI x) = primaFacieCUR r && equivalentCUR r (p ++ y)
                             then Just (x2, y1) else Nothing
           p = catMaybes $ map (>>= toURange) $ pure f <*> y <*> y
 
-_'collapseCBR = setSCDepth 5 $ testGroup "collapseCBR"
-    [ sTestProperty "null" _collapseCBR_null
-    , sTestProperty "universal" _collapseCBR_universal
-    , sTestProperty "adjacent" _collapseCBR_adjacent ]
-
 _collapseCBR_null :: OLPBSmallint -> Bool
 _collapseCBR_null (OLPBSI x) = primaFacieCBR r && r == y
     where y = toCBRange $ toRawCBR x
@@ -307,12 +284,6 @@ _collapseCBR_adjacent (OLPBSI x) = primaFacieCBR r && equivalentCBR r (p ++ y)
                             if succ x2 == y1 then Just (x2, y1) else Nothing
           p = catMaybes $ map (>>= toBRange) $ pure f <*> y <*> y
 
-_'transformCUR = setSCDepth 5 $ testGroup "transformCUR"
-    [ sTestProperty "id" _transformCUR_id
-    , sTestProperty "const" $ _transformCUR_f (const (1::Int))
-    , sTestProperty "mul2" $ _transformCUR_f $ (*2) . unSI
-    , sTestProperty "quot2" $ _transformCUR_f (`quot` 2) ]
-
 _transformCUR_id :: OLMPSmallint -> Bool
 _transformCUR_id (OLMPSI x) = primaFacieCUR r && r == y
     where y = toCURange $ toRawCUR x
@@ -324,12 +295,6 @@ _transformCUR_f f (OLMPSI x) = primaFacieCUR r && equivalentCUR r p
           r = transformCUR f $ toCURange y
           p = catMaybes $ map (toURange . (\(x, y) -> (fmap f x, fmap f y)) .
                                 unURange) y
-
-_'transformCBR = setSCDepth 5 $ testGroup "transformCBR"
-    [ sTestProperty "id" _transformCBR_id
-    , sTestProperty "const" $ _transformCBR_f (const (1::Int))
-    , sTestProperty "mul2" $ _transformCBR_f $ (*2) . unBSI
-    , sTestProperty "quot2" $ _transformCBR_f (`quot` 2) ]
 
 _transformCBR_id :: OLPBSmallint -> Bool
 _transformCBR_id (OLPBSI x) = primaFacieCBR r && r == y
@@ -348,4 +313,3 @@ _transformCBR_const (OLPBSI x) = primaFacieCBR r && equivalentCBR r p
     where y = toRawCBR x
           r = transformCBR (const (1::Int)) $ toCBRange y
           p = catMaybes $ map (toBRange . const (1, 1)) y
-

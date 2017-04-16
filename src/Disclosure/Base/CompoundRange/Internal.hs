@@ -255,4 +255,3 @@ transformCBR f = collapseCBR (==) . toCBRange . transformCBR' f . unCBRange
           transformCBR' f (x:xr) = maybe r (:r) $ toBRange (f l, f h)
             where (l, h) = unBRange x
                   r = transformCBR' f xr
-

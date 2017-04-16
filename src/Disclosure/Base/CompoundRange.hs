@@ -73,4 +73,3 @@ See also 'Disclosure.Base.Range.punionBR' for the permissive union.
 unionBRange :: Ord a => BRange a -> BRange a -> CBRange a
 {-# INLINABLE unionBRange #-}
 unionBRange x y = toCBRange [x, y]
-

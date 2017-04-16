@@ -72,4 +72,3 @@ uRangeGE = flip (curry toURange) Nothing . Just
 bRangeGE :: (Bounded a, Ord a) => a -> Maybe (BRange a)
 {-# INLINABLE bRangeGE #-}
 bRangeGE = flip (curry toBRange) maxBound
-

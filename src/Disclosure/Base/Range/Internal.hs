@@ -134,4 +134,3 @@ See also 'Disclosure.Base.CompoundRange.unionBR' for true union.
 punionBR :: Ord a => BRange a -> BRange a -> BRange a
 {-# INLINABLE punionBR #-}
 punionBR (BRange (l, h)) (BRange (l', h')) = BRange (min l l', max h h')
-

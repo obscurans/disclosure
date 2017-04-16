@@ -132,4 +132,3 @@ butterfly :: ((a, a, a) -> a -> b) -> (a, a, a, a) -> (b, b, b, b)
 {-# INLINABLE butterfly #-}
 butterfly f (s, h, d, c) = (f (h, d, c) s, f (s, d, c) h,
                             f (s, h, c) d, f (s, h, d) c)
-
