@@ -10,8 +10,8 @@ Internal utility functions
 -}
 module Disclosure.Base.Util where
 
-import Data.Tuple.Curry
-import Data.Tuple.Homogenous
+import Data.Tuple.Curry (curryN, uncurryN) --tuple
+import Data.Tuple.Homogenous (Tuple2(..), Tuple4(..)) --tuples-homogenous-h98
 import Control.Monad
 
 -- | A possibly failing 'Monoid', where 'mappend'' returns 'Maybe' @a@ instead
@@ -126,9 +126,3 @@ compareMeet' x y
 readSucc :: b -> a -> [(a, b)]
 {-# INLINABLE readSucc #-}
 readSucc y x = [(x, y)]
-
--- | Utility for doing suit computations with (all other suits, current suit)
-butterfly :: ((a, a, a) -> a -> b) -> (a, a, a, a) -> (b, b, b, b)
-{-# INLINABLE butterfly #-}
-butterfly f (s, h, d, c) = (f (h, d, c) s, f (s, d, c) h,
-                            f (s, h, c) d, f (s, h, d) c)

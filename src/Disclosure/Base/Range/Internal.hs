@@ -8,8 +8,6 @@ Portability : portable
 -}
 module Disclosure.Base.Range.Internal where
 
-import Data.Ord
-import Data.Tuple
 import Control.Monad
 import Disclosure.Base.Util
 
@@ -83,20 +81,6 @@ instance (Bounded a, Eq a, Show a) => Show (BRange a) where
         | x == minBound = show y ++ "-"
         | y == maxBound = show x ++ "+"
         | otherwise = show x ++ "–" ++ show y
-
--- | Linear extension of the subset inclusion ordering. Compares upper bounds
--- under normal ≤ ordering, lexicographically lower bounds under reversed ≥
--- ordering.
-instance Ord a => Ord (URange a) where
-    {-# INLINABLE compare #-}
-    compare = comparing (fmap Down . swap . fmap NLast . unURange)
-
--- | Linear extension of the subset inclusion ordering. Compares upper bounds
--- under normal ≤ ordering, lexicographically lower bounds under reversed ≥
--- ordering.
-instance Ord a => Ord (BRange a) where
-    {-# INLINABLE compare #-}
-    compare = comparing (fmap Down . swap . unBRange)
 
 -- | The commutative operation, which may fail if the result is empty,
 -- intersects the two ranges. Identity is the universal range.
