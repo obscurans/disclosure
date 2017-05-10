@@ -33,6 +33,9 @@ adjSCDepth x = adjustOption (x +)
 suchThat :: Series m a -> (a -> Bool) -> Series m a
 suchThat s p = s >>= \x -> if p x then pure x else empty
 
+catMaybeS :: Series m (Maybe a) -> Series m a
+catMaybeS s = s >>= (maybe empty pure)
+
 orderedPair :: (Monad m, Ord a) => Series m a -> Series m (a, a)
 orderedPair = decDepth . flip suchThat (\(x, y) -> x <= y) . join (><)
 
@@ -140,6 +143,9 @@ testLI2 = _' (setSCDepth 15) . sTestProperty
 testSI :: String -> (Smallint -> Bool) -> TestTree
 testSI = _' (setSCDepth 30) . sTestProperty
 
+testBSI :: String -> (BSmallint -> Bool) -> TestTree
+testBSI = _' (setSCDepth 14) . sTestProperty
+
 testLSI :: String -> ([Smallint] -> Bool) -> TestTree
 testLSI = _' (setSCDepth 6) . sTestProperty
 
@@ -166,6 +172,17 @@ testMOPSI2 = _' (setSCDepth 8) . sTestProperty
 
 testOPBSI2 :: String -> (OPBSmallint -> OPBSmallint -> Bool) -> TestTree
 testOPBSI2 = _' (setSCDepth 8) . sTestProperty
+
+testOPBSI4 :: String
+           -> (OPBSmallint -> OPBSmallint -> OPBSmallint -> OPBSmallint -> Bool)
+           -> TestTree
+testOPBSI4 = _' (setSCDepth 5) . sTestProperty
+
+testOPBSI8 :: String
+           -> (OPBSmallint -> OPBSmallint -> OPBSmallint -> OPBSmallint ->
+               OPBSmallint -> OPBSmallint -> OPBSmallint -> OPBSmallint -> Bool)
+           -> TestTree
+testOPBSI8 = _' (setSCDepth 3) . sTestProperty
 
 testMOPSIL :: String -> ([MOPSmallint] -> Bool) -> TestTree
 testMOPSIL = _' (setSCDepth 7) . sTestProperty

@@ -48,25 +48,32 @@ module Disclosure.Constraint.Shape (
 , shapeH
 , shapeD
 , shapeC
+-- * Set algebra operations
+, compareMeet'
+, punionShape
 ) where
 
-import Data.List
 import Data.Tuple.Curry (curryN) --tuple
 import Data.Tuple.Sequence (sequenceT) --tuple
 import Data.Tuple.Homogenous (Tuple4(..)) --tuples-homogenous-h98
 import Disclosure.Base.Util
+import Disclosure.Base.Range
 import Disclosure.Constraint.Shape.Internal
 
-{-| Prints all nontrivially constrained suits in rank order (reverse
-alphabetical) as 'Disclosure.Base.BRange's, followed by their (filled) unicode
-suit symbols, separated by spaces. A universal 'Shape' becomes @\"?\"@.
--}
-instance Show Shape where
-    {-# INLINABLE show #-}
-    show = intercalate " " . defaultL "?" . filter (\x -> head x /= '?')
-         . zipWith (flip (++)) ["♠", "♥", "♦", "♣"]
-         . map show . foldr (:) [] . minShape
-         where defaultL y x = if null x then [y] else x
+-- | Constructs and validates a 'SuitRange' for =@x@
+suitEQ :: Int -> Maybe SuitRange
+{-# INLINABLE suitEQ #-}
+suitEQ = (>>= bRangeEQ) . toSuit
+
+-- | Constructs and validates a 'SuitRange' for ≤@x@
+suitLE :: Int -> Maybe SuitRange
+{-# INLINABLE suitLE #-}
+suitLE = (>>= bRangeLE) . toSuit
+
+-- | Constructs and validates a 'SuitRange' for ≥@x@
+suitGE :: Int -> Maybe SuitRange
+{-# INLINABLE suitGE #-}
+suitGE = (>>= bRangeGE) . toSuit
 
 -- | Constructs, validates, and normalizes a 'Shape' from 4 'SuitRange's
 shapeHand :: SuitRange -> SuitRange -> SuitRange -> SuitRange -> Maybe Shape

@@ -22,12 +22,14 @@ toLv l
     | l < 1 || l > 7 = Nothing
     | otherwise = Just $ Lv l
 
+-- | 1 ≤ Lv ≤ 7
 instance Bounded Lv where
     {-# INLINABLE minBound #-}
     minBound = Lv 1
     {-# INLINABLE maxBound #-}
     maxBound = Lv 7
 
+-- | Natural mapping from [0, 6] -> [1, 7]
 instance Enum Lv where
     {-# INLINABLE fromEnum #-}
     fromEnum (Lv l)

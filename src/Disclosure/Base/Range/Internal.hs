@@ -8,6 +8,8 @@ Portability : portable
 -}
 module Disclosure.Base.Range.Internal where
 
+import Data.Ord
+import Data.Tuple
 import Control.Monad
 import Disclosure.Base.Util
 
@@ -82,6 +84,20 @@ instance (Bounded a, Eq a, Show a) => Show (BRange a) where
         | y == maxBound = show x ++ "+"
         | otherwise = show x ++ "–" ++ show y
 
+-- | Linear extension of the subset inclusion ordering. Compares upper bounds
+-- under normal ≤ ordering, lexicographically lower bounds under reversed ≥
+-- ordering.
+instance Ord a => Ord (URange a) where
+    {-# INLINABLE compare #-}
+    compare = comparing (fmap Down . swap . fmap NLast . unURange)
+
+-- | Linear extension of the subset inclusion ordering. Compares upper bounds
+-- under normal ≤ ordering, lexicographically lower bounds under reversed ≥
+-- ordering.
+instance Ord a => Ord (BRange a) where
+    {-# INLINABLE compare #-}
+    compare = comparing (fmap Down . swap . unBRange)
+
 -- | The commutative operation, which may fail if the result is empty,
 -- intersects the two ranges. Identity is the universal range.
 instance Ord a => Monoid' (URange a) where
@@ -103,7 +119,7 @@ instance (Bounded a, Ord a) => Monoid' (BRange a) where
 {-| Takes the permissive union: for two ranges [@l@, @h@] and [@l@', @h@'], the
 result is [@min l l@', @max h h@'].
 
-See also 'Disclosure.Base.CompoundRange.unionUR' for true union.
+See also 'Disclosure.Base.CompoundRange.unionURange' for true union.
 -}
 punionUR :: Ord a => URange a -> URange a -> URange a
 {-# INLINABLE punionUR #-}
@@ -113,7 +129,7 @@ punionUR (URange (l, h)) (URange (l', h')) =
 {-| Takes the permissive union: for two ranges [@l@, @h@] and [@l@', @h@'], the
 result is [@min l l@', @max h h@'].
 
-See also 'Disclosure.Base.CompoundRange.unionBR' for true union.
+See also 'Disclosure.Base.CompoundRange.unionBRange' for true union.
 -}
 punionBR :: Ord a => BRange a -> BRange a -> BRange a
 {-# INLINABLE punionBR #-}

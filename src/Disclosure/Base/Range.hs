@@ -34,25 +34,9 @@ module Disclosure.Base.Range (
 , punionBR
 ) where
 
-import Data.Ord
-import Data.Tuple
 import Control.Monad
 import Disclosure.Base.Util
 import Disclosure.Base.Range.Internal
-
--- | Linear extension of the subset inclusion ordering. Compares upper bounds
--- under normal ≤ ordering, lexicographically lower bounds under reversed ≥
--- ordering.
-instance Ord a => Ord (URange a) where
-    {-# INLINABLE compare #-}
-    compare = comparing (fmap Down . swap . fmap NLast . unURange)
-
--- | Linear extension of the subset inclusion ordering. Compares upper bounds
--- under normal ≤ ordering, lexicographically lower bounds under reversed ≥
--- ordering.
-instance Ord a => Ord (BRange a) where
-    {-# INLINABLE compare #-}
-    compare = comparing (fmap Down . swap . unBRange)
 
 -- | Constructs and validates a 'URange' for [@x@, @y@]
 toURange' :: Ord a => (a, a) -> Maybe (URange a)

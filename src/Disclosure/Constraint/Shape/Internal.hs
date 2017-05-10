@@ -9,6 +9,8 @@ Portability : portable
 module Disclosure.Constraint.Shape.Internal where
 
 import Data.Maybe
+import Data.List
+import Control.Applicative
 import Data.Tuple.Sequence (sequenceT) --tuple
 import Data.Tuple.Homogenous (Tuple4(..)) --tuples-homogenous-h98
 import Disclosure.Base.Util
@@ -34,12 +36,14 @@ toSuit s
     | s < 0 || s > 13 = Nothing
     | otherwise = Just $ Suit s
 
+-- | @0@ ≤ @x@ ≤ @13@
 instance Bounded Suit where
     {-# INLINABLE minBound #-}
     minBound = Suit 0
     {-# INLINABLE maxBound #-}
     maxBound = Suit 13
 
+-- | Directly as 'Int'
 instance Enum Suit where
     {-# INLINABLE fromEnum #-}
     fromEnum (Suit s) = s
@@ -65,21 +69,6 @@ type SuitRange = BRange Suit
 toSuitRange :: Int -> Int -> Maybe SuitRange
 {-# INLINABLE toSuitRange #-}
 toSuitRange = liftN2 Suit id $ curry toBRange
-
--- | Constructs and validates a 'SuitRange' for =@x@
-suitEQ :: Int -> Maybe SuitRange
-{-# INLINABLE suitEQ #-}
-suitEQ = bRangeEQ . Suit
-
--- | Constructs and validates a 'SuitRange' for ≤@x@
-suitLE :: Int -> Maybe SuitRange
-{-# INLINABLE suitLE #-}
-suitLE = bRangeLE . Suit
-
--- | Constructs and validates a 'SuitRange' for ≥@x@
-suitGE :: Int -> Maybe SuitRange
-{-# INLINABLE suitGE #-}
-suitGE = bRangeGE . Suit
 
 {-| A validated, nonempty range of hand shapes, as a 4-tuple of 'SuitRange's;
 normalization rules are described in 'toShape'.
@@ -155,6 +144,17 @@ minShape = fmap BRange -- trusted operation
             | 13 - l1 - l2 - l3 <= h = (l', maxBound)
             | otherwise = o
 
+{-| Prints all nontrivially constrained suits in rank order (reverse
+alphabetical) as 'Disclosure.Base.BRange's, followed by their (filled) unicode
+suit symbols, separated by spaces. A universal 'Shape' becomes @\"?\"@.
+-}
+instance Show Shape where
+    {-# INLINABLE show #-}
+    show = intercalate " " . defaultL "?" . filter (\x -> head x /= '?')
+         . zipWith (flip (++)) ["♠", "♥", "♦", "♣"]
+         . map show . foldr (:) [] . minShape
+         where defaultL y x = if null x then [y] else x
+
 -- | The commutative operation, which may fail if the result is empty,
 -- intersects the two ranges. Identity is the universal range.
 instance Monoid' Shape where
@@ -163,3 +163,6 @@ instance Monoid' Shape where
     {-# INLINABLE mappend' #-}
     mappend' = liftN2 unShape ((>>= toShape . Tuple4) . sequenceT . untuple4)
                $ applyA2 $ pure mappend'
+
+punionShape :: Shape -> Shape -> Shape
+punionShape = liftN2 unShape Shape $ liftA2 punionBR
